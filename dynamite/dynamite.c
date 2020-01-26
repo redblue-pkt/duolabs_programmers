@@ -32,11 +32,12 @@
 
 #include <linux/string.h>
 
+#include "dynamite.h"
+
 #ifndef WRITE_FUNCTIONS_INTERNAL
 #include "../ezusb/ezusb.h"
 #endif
 
-#include "dynamite.h"
 #include "dynamite_ioctl.h"
 #include "dynamite_init.h"
 #include "dynamite_commands.h"

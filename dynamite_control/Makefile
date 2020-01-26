@@ -1,5 +1,5 @@
 CFLAGS = -g -O -I/usr/unclude -L/usr/lib
-LIBS = -lm -lusb
+LIBS = -lm
 
 OBJ =\
 	dynamite_control.o
