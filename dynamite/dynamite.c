@@ -978,7 +978,8 @@ static int dynamite_release(struct inode *inode, struct file *file)
 }
 
 static const struct usb_device_id id_table[] = {
-	{ USB_DEVICE(USB_SKEL_VENDOR_ID, USB_SKEL_PRODUCT_ID) },
+	{ USB_DEVICE(DYNAMITE_VENDOR_ID, DYNAMITE_PRODUCT_ID) },
+	{ USB_DEVICE(DYNAMITE_PLUS_VENDOR_ID, DYNAMITE_PLUS_PRODUCT_ID) },
 	{},
 };
 MODULE_DEVICE_TABLE(usb, id_table);

@@ -32,8 +32,11 @@
 
 #define WRITE_FUNCTIONS_INTERNAL
 
-#define USB_SKEL_VENDOR_ID      0x0547
-#define USB_SKEL_PRODUCT_ID     0x1010
+#define DYNAMITE_VENDOR_ID      0x0547
+#define DYNAMITE_PRODUCT_ID     0x1010
+
+#define DYNAMITE_PLUS_VENDOR_ID 0x04b4
+#define DYNAMITE_PLUS_PRODUCT_ID 0x1112
 
 #define CPUCS_RESET              0x1
 #define CPUCS_RUN                0x0

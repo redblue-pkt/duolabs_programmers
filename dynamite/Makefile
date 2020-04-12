@@ -1,12 +1,11 @@
-CFLAGS_dynamite.o := -Wno-unused-variable
+CFLAGS_dynamite.o := -Wno-unused-variable -Wno-unused-function -Wno-uninitialized -Wno-maybe-uninitialized
 obj-m := dynamite.o
 
 all:
-	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
+	$(MAKE) -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
 
 clean:
-	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
+	$(MAKE) -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
 
 install:
-	@cp -Rf dynamite.ko /lib/modules/$(shell uname -r)/kernel/drivers/usb/misc
-	depmod -a
+	@$(foreach file, $(wildcard dynamite.ko), cp -rf $(file) /lib/modules/$(shell uname -r)/kernel/drivers/usb/misc; depmod -a;)

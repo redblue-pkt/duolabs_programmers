@@ -1,4 +1,4 @@
-CFLAGS = -g -O -I/usr/unclude -L/usr/lib
+CFLAGS = -g -O -I/usr/unclude -L/usr/lib -Wno-implicit-function-declaration
 LIBS = -lm
 
 OBJ =\
@@ -8,8 +8,12 @@ all: dynamite_control
 
 clean:
 	@rm -f *.o dynamite_control
+
+install:
+	@$(foreach file, $(wildcard dynamite_control), cp -rf $(file) /usr/bin;)
+
 .c.o:
-	@$(CC) -c $(INCLUDES) $(CFLAGS) $<
+	@$(CC) -c $(CFLAGS) $<
 
 dynamite_control: $(OBJ)
 	@$(CC) $(OBJ) $(LIBS) -o dynamite_control
