@@ -30,13 +30,12 @@
 #define internal_dev_info_yellow(dev, format, arg ...) pr_cont(YELLOW_COLOR "%s %s: " YELLOW_COLOR format, dev_driver_string(dev), dev_name(dev) , ##arg)
 #define internal_dev_info_blue(dev, format, arg ...) pr_cont(YELLOW_COLOR "%s %s: " BLUE_COLOR format, dev_driver_string(dev), dev_name(dev) , ##arg)
 
-//#define WRITE_FUNCTIONS_INTERNAL
-
 #define DYNAMITE_VENDOR_ID      0x0547
 #define DYNAMITE_PRODUCT_ID     0x1010
 
 #define DYNAMITE_PLUS_VENDOR_ID 0x04b4
-#define DYNAMITE_PLUS_PRODUCT_ID 0x1112
+#define DYNAMITE_PLUS_PREENUMERATION_PRODUCT_ID 0x1112
+#define DYNAMITE_PLUS_PRODUCT_ID 0x1111
 
 #define DYNAMITE "Dynamite"
 #define DYNAMITE_PLUS "Dynamite Plus"
@@ -77,6 +76,13 @@ typedef enum {
 	FINISH_LOAD_CARDPROGRAMMER_FW	= 7,
 } state_t;
 
+typedef enum {
+	NONE_DEVICE = 0,
+	DYNAMITE_DEVICE = 1,
+	DYNAMITE_PLUS_DEVICE = 2,
+	DYNAMITE_TINY_DEVICE = 3,
+} device_t;
+
 #define MIN(a,b) (((a) <= (b)) ? (a) : (b))
 #define MAX_PKT_SIZE 64
 
@@ -88,6 +94,7 @@ struct usb_dynamite {
 	struct usb_interface *uinterface; /* the interface for this device */
 	struct usb_class_driver uclass;
 	const char *device_name;
+	int device_running;
 	char *buf[MAX_PKT_SIZE];
 	int status;
 	struct mutex lock;
@@ -124,11 +131,6 @@ struct dynamite_vendor_command {
 	int index;
 	void *buffer;
 };
-
-#include "card_programmer.h"
-#include "start.h"
-#include "vend_ax.h"
-#include "mouse_phoenix.h"
 
 #define NORMAL_COLOR  "\x1B[0m"
 #define RED_COLOR  "\x1B[31m"

@@ -34,15 +34,12 @@
 
 #include "dynamite.h"
 
-#ifndef WRITE_FUNCTIONS_INTERNAL
 #include "../ezusb/ezusb.h"
-#endif
 
 #include "dynamite_ioctl.h"
 #include "dynamite_init.h"
 #include "dynamite_commands.h"
 
-static const char * static_dev_name = "";
 static int debug_communication = 0;
 module_param(debug_communication, int, 0660);
 
@@ -181,31 +178,6 @@ static int bulk_command_rcv(struct usb_dynamite *dynamite, char *buf, int size, 
 	return result;
 }
 
-#ifdef WRITE_FUNCTIONS_INTERNAL
-static int dynamite_writememory(struct usb_dynamite *dynamite, int address, const unsigned char *data, int length, __u8 request)
-{
-	int result;
-
-	/* Note: usb_control_msg returns negative value on error or length of the data that was written! */
-	result = vendor_command_snd(dynamite, request, address, 0, data, length);
-
-	return result;
-}
-
-static int dynamite_set_reset(struct usb_dynamite *dynamite, unsigned char reset_bit)
-{
-	int result;
-
-	result = dynamite_writememory(dynamite, 0x7F92, &reset_bit, 1, 0xa0);
-
-	if (result < 0) {
-		dev_err(&dynamite->uinterface->dev, "set_reset (%d) failed\n", reset_bit);
-	}
-
-	return result;
-}
-#endif
-
 static int send_command(struct usb_dynamite *dynamite, int id)
 {
 	int i, result;
@@ -294,24 +266,42 @@ static int dynamite_firmware_load(struct usb_dynamite *dynamite, int id, int res
 {
 	int response = -ENOENT;
 	const char *fw_name;
-	const struct ezusb_hex_record *record = NULL;
+
+	dev_dbg(&dynamite->uinterface->dev, "%s: sending %s...", __func__, fw_name);
+
+	if (reset_cpu != NO_RESET_CPU) {
+		dev_dbg(&dynamite->uinterface->dev, "%s reset cpu\n", dynamite->device_name);
+		if (dynamite->device_running == DYNAMITE_DEVICE)
+			response = ezusb_fx1_set_reset(dynamite->udevice, 1);
+		else if (dynamite->device_running == DYNAMITE_PLUS_DEVICE)
+			response = ezusb_fx2_set_reset(dynamite->udevice, 1);
+	}
+
+	if (response < 0)
+		goto out;
 
 	if (0) { ; }
 	else if (le16_to_cpu(id) == VEND_AX) {
-		fw_name = "vend_ax_fw";
-		record = &vend_ax_firmware[0];
+		if (dynamite->device_running == DYNAMITE_DEVICE)
+			fw_name = "dynamite/vend_ax.fw";
 		dynamite->state = START_LOAD_VEND_AX_FW;
 	} else if (le16_to_cpu(id) == START) {
-		fw_name = "start_fw";
-		record = &start_firmware[0];
+		if (dynamite->device_running == DYNAMITE_DEVICE)
+			fw_name = "dynamite/start.fw";
+		else if (dynamite->device_running == DYNAMITE_PLUS_DEVICE)
+			fw_name = "dynamiteplus/start.fw";
 		dynamite->state = START_LOAD_START_FW;
 	} else if (le16_to_cpu(id) == MOUSE_PHOENIX) {
-		fw_name = "mouse_phoenix_fw";
-		record = &mouse_phoenix_firmware[0];
+		if (dynamite->device_running == DYNAMITE_DEVICE)
+			fw_name = "dynamite/phoenix.fw";
+		else if (dynamite->device_running == DYNAMITE_PLUS_DEVICE)
+			fw_name = "dynamiteplus/phoenix.fw";
 		dynamite->state = START_LOAD_MOUSE_PHOENIX_FW;
 	} else if (le16_to_cpu(id) == CARDPROGRAMMER) {
-		fw_name = "cardprogrammer_fw";
-		record = &card_programmer_firmware[0];
+		if (dynamite->device_running == DYNAMITE_DEVICE)
+			fw_name = "dynamite/programmer.fw";
+		else if (dynamite->device_running == DYNAMITE_PLUS_DEVICE)
+			fw_name = "dynamiteplus/programmer.fw";
 		dynamite->state = START_LOAD_CARDPROGRAMMER_FW;
 	} else {
 		dev_err(&dynamite->uinterface->dev, "%s: unknown fw request, aborting\n",
@@ -319,43 +309,28 @@ static int dynamite_firmware_load(struct usb_dynamite *dynamite, int id, int res
 		goto out;
 	}
 
-	dev_dbg(&dynamite->uinterface->dev, "%s: sending %s...", __func__, fw_name);
-
-	if (reset_cpu != NO_RESET_CPU) {
-		dev_dbg(&dynamite->uinterface->dev, "%s reset cpu\n", dynamite->device_name);
-#ifdef WRITE_FUNCTIONS_INTERNAL
-		response = dynamite_set_reset(dynamite, 1);
-#else
-		response = ezusb_fx1_set_reset(dynamite->udevice, 1);
-#endif
-	}
-
-	if (response < 0)
-		goto out;
-
-	while(record->address != 0xffff) {
-#ifdef WRITE_FUNCTIONS_INTERNAL
-		response = dynamite_writememory(dynamite, record->address, (unsigned char *)record->data, record->data_size, 0xa0);
-#else
-		response = ezusb_fx2_writememory(dynamite->udevice, record->address, (unsigned char *)record->data, record->data_size, WRITE_INT_RAM);
-#endif
-		if (response < 0) {
-			dev_err(&dynamite->uinterface->dev, "%s: write memory failed "
-			    "firmware (%d %04X %p %d)\n", __func__,
-			    response,
-			    be32_to_cpu(record->address), record->data, be16_to_cpu(record->data_size));
-			goto out;
+	if (dynamite->device_running == DYNAMITE_DEVICE) {
+		if (ezusb_fx1_ihex_firmware_download(dynamite->udevice, fw_name) < 0) {
+			dev_err(&dynamite->uinterface->dev, "failed to load firmware \"%s\"\n",
+				fw_name);
+			return -ENOENT;
 		}
-		record++;
+	}
+	else if (dynamite->device_running == DYNAMITE_PLUS_DEVICE)
+	{
+		if (ezusb_fx2_ihex_firmware_download(dynamite->udevice, fw_name) < 0) {
+			dev_err(&dynamite->uinterface->dev, "failed to load firmware \"%s\"\n",
+				fw_name);
+			return -ENOENT;
+		}
 	}
 
 	if (reset_cpu != NO_RESET_CPU) {
 		dev_dbg(&dynamite->uinterface->dev, "Dynamite Programmer reset cpu\n");
-#ifdef WRITE_FUNCTIONS_INTERNAL
-		response = dynamite_set_reset(dynamite, 0);
-#else
-		response = ezusb_fx1_set_reset(dynamite->udevice, 0);
-#endif
+		if (dynamite->device_running == DYNAMITE_DEVICE)
+			response = ezusb_fx1_set_reset(dynamite->udevice, 0);
+		else if (dynamite->device_running == DYNAMITE_PLUS_DEVICE)
+			response = ezusb_fx2_set_reset(dynamite->udevice, 0);
 	}
 
 	if (response < 0)
@@ -371,16 +346,12 @@ static int dynamite_firmware_load(struct usb_dynamite *dynamite, int id, int res
 		dynamite->state = FINISH_LOAD_CARDPROGRAMMER_FW;
 
 	return 0;
-#if 0
-	if (ezusb_fx1_ihex_firmware_download(dev, fw_name) < 0) {
-		dev_err(&dev->dev, "failed to load firmware \"%s\"\n",
-			fw_name);
-		return -ENOENT;
-	}
-#endif
 out:
 	return response;
 }
+
+//MODULE_FIRMWARE("dynamite/vend_ax.hex");
+//MODULE_FIRMWARE("dynamite/start.hex");
 
 static int dynamite_set_init_fw(struct usb_dynamite *dynamite)
 {
@@ -979,6 +950,7 @@ static int dynamite_release(struct inode *inode, struct file *file)
 
 static const struct usb_device_id id_table[] = {
 	{ USB_DEVICE(DYNAMITE_VENDOR_ID, DYNAMITE_PRODUCT_ID) },
+	{ USB_DEVICE(DYNAMITE_PLUS_VENDOR_ID, DYNAMITE_PLUS_PREENUMERATION_PRODUCT_ID) },
 	{ USB_DEVICE(DYNAMITE_PLUS_VENDOR_ID, DYNAMITE_PLUS_PRODUCT_ID) },
 	{},
 };
@@ -1022,10 +994,14 @@ static int dynamite_probe(struct usb_interface *interface, const struct usb_devi
 	dynamite->udevice = usb_get_dev(interface_to_usbdev(interface));
 	dynamite->uinterface = interface;
 
-	if ((dynamite->udevice->descriptor.idVendor == DYNAMITE_VENDOR_ID) && (dynamite->udevice->descriptor.idProduct == DYNAMITE_PRODUCT_ID))
+	if ((dynamite->udevice->descriptor.idVendor == DYNAMITE_VENDOR_ID) && (dynamite->udevice->descriptor.idProduct == DYNAMITE_PRODUCT_ID)) {
 		dynamite->device_name = DYNAMITE;
-	else if ((dynamite->udevice->descriptor.idVendor == DYNAMITE_PLUS_VENDOR_ID) && (dynamite->udevice->descriptor.idProduct == DYNAMITE_PLUS_PRODUCT_ID))
+		dynamite->device_running = DYNAMITE_DEVICE;
+	} else if ((dynamite->udevice->descriptor.idVendor == DYNAMITE_PLUS_VENDOR_ID) && ((dynamite->udevice->descriptor.idProduct == DYNAMITE_PLUS_PREENUMERATION_PRODUCT_ID) || (dynamite->udevice->descriptor.idProduct == DYNAMITE_PLUS_PRODUCT_ID))) {
 		dynamite->device_name = DYNAMITE_PLUS;
+		dynamite->device_running = DYNAMITE_PLUS_DEVICE;
+	} else
+		dynamite->device_running = NONE_DEVICE;
 
 	/* set up the endpoint information */
 	/* use only the first bulk-in and bulk-out endpoints */

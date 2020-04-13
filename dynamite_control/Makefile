@@ -7,7 +7,7 @@ OBJ =\
 all: dynamite_control
 
 clean:
-	@rm -f *.o dynamite_control
+	@$(RM) -f *.o dynamite_control
 
 install:
 	@$(foreach file, $(wildcard dynamite_control), cp -rf $(file) /usr/bin;)
