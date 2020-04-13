@@ -3,6 +3,7 @@ all:
 	$(MAKE) -C dynamite PWD=$(shell pwd)/ezusb
 	$(MAKE) -C dynamite_control
 	$(MAKE) -C ihex2fw
+	$(MAKE) -C firmware
 
 clean:
 	$(MAKE) -C dynamite clean PWD=$(shell pwd)/dynamite
@@ -14,4 +15,4 @@ install:
 	$(MAKE) -C dynamite install
 	$(MAKE) -C ezusb install
 	$(MAKE) -C dynamite_control install
-	$(MAKE) -C ihex2fw install
+	$(MAKE) -C firmware install
