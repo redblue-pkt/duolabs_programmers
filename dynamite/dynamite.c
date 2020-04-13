@@ -42,7 +42,7 @@
 #include "dynamite_init.h"
 #include "dynamite_commands.h"
 
-static int number_of_connects = 0;
+static const char * static_dev_name = "";
 static int debug_communication = 0;
 module_param(debug_communication, int, 0660);
 
@@ -75,9 +75,9 @@ static void dump_buffer(struct usb_dynamite *dynamite, unsigned char *buffer, ch
 	int j = 16 - len;
 
 	for (n = 0; n < len; n += i) {
-		if (!strncmp(name, ">>>>>>", 6))
+		if (!strncmp(name, "data out", 8))
 			internal_dev_info_green(&dynamite->uinterface->dev, "%s ", name);
-		else if (!strncmp(name, "<<<<<<", 6))
+		else if (!strncmp(name, "data in", 7))
 			internal_dev_info_blue(&dynamite->uinterface->dev, "%s ", name);
 		else
 			internal_dev_info(&dynamite->uinterface->dev, "");
@@ -106,7 +106,7 @@ static int vendor_command_snd(struct usb_dynamite *dynamite, unsigned char reque
 	mutex_lock(&dynamite->lock);
 
 	if (debug_communication && buffer != NULL)
-		dump_buffer(dynamite, buffer, ">>>>>>", size);
+		dump_buffer(dynamite, buffer, "data out", size);
 
 	result = usb_control_msg(dynamite->udevice, usb_sndctrlpipe(dynamite->udevice, 0), request, USB_DIR_OUT | USB_TYPE_VENDOR | USB_RECIP_DEVICE, address, index, buffer, size, 1000);
 
@@ -126,7 +126,7 @@ static int vendor_command_rcv(struct usb_dynamite *dynamite, unsigned char reque
 	result = usb_control_msg(dynamite->udevice, usb_rcvctrlpipe(dynamite->udevice, 0), request, USB_DIR_IN | USB_TYPE_VENDOR | USB_RECIP_DEVICE, address, index, buf, size, 1000);
 
 	if (debug_communication && buf != NULL)
-		dump_buffer(dynamite, buf, "<<<<<<", size);
+		dump_buffer(dynamite, buf, "data in", size);
 
 	mutex_unlock(&dynamite->lock);
 
@@ -154,9 +154,9 @@ static int bulk_command_snd(struct usb_dynamite *dynamite, const char *buf, int 
 	mutex_lock(&dynamite->lock);
 
 	if (debug_communication && buffer != NULL)
-		dump_buffer(dynamite, buffer, ">>>>>>", MAX_PKT_SIZE);
+		dump_buffer(dynamite, buffer, "data out", MAX_PKT_SIZE);
 
-	result = usb_bulk_msg(dynamite->udevice, usb_sndbulkpipe(dynamite->udevice, dynamite->bulk_out_endpointAddr), buffer, size, /*&count*/NULL, 1000);
+	result = usb_bulk_msg(dynamite->udevice, usb_sndbulkpipe(dynamite->udevice, dynamite->bulk_out_endpointAddr), buffer, size, NULL, 1000);
 
 	mutex_unlock(&dynamite->lock);
 
@@ -171,10 +171,10 @@ static int bulk_command_rcv(struct usb_dynamite *dynamite, char *buf, int size, 
 
 	mutex_lock(&dynamite->lock);
 
-	result = usb_bulk_msg(dynamite->udevice, usb_rcvbulkpipe(dynamite->udevice, dynamite->bulk_in_endpointAddr), buf, size, /*&count*/NULL, 1000);
+	result = usb_bulk_msg(dynamite->udevice, usb_rcvbulkpipe(dynamite->udevice, dynamite->bulk_in_endpointAddr), buf, size, NULL, 1000);
 
 	if (debug_communication && buf != NULL)
-		dump_buffer(dynamite, buf, "<<<<<<", MAX_PKT_SIZE);
+		dump_buffer(dynamite, buf, "data in", MAX_PKT_SIZE);
 
 	mutex_unlock(&dynamite->lock);
 
@@ -322,7 +322,7 @@ static int dynamite_firmware_load(struct usb_dynamite *dynamite, int id, int res
 	dev_dbg(&dynamite->uinterface->dev, "%s: sending %s...", __func__, fw_name);
 
 	if (reset_cpu != NO_RESET_CPU) {
-		dev_dbg(&dynamite->uinterface->dev, "Dynamite Programmer reset cpu\n");
+		dev_dbg(&dynamite->uinterface->dev, "%s reset cpu\n", dynamite->device_name);
 #ifdef WRITE_FUNCTIONS_INTERNAL
 		response = dynamite_set_reset(dynamite, 1);
 #else
@@ -337,7 +337,7 @@ static int dynamite_firmware_load(struct usb_dynamite *dynamite, int id, int res
 #ifdef WRITE_FUNCTIONS_INTERNAL
 		response = dynamite_writememory(dynamite, record->address, (unsigned char *)record->data, record->data_size, 0xa0);
 #else
-		response = ezusb_fx1_writememory(dynamite->udevice, record->address, (unsigned char *)record->data, record->data_size, WRITE_INT_RAM);
+		response = ezusb_fx2_writememory(dynamite->udevice, record->address, (unsigned char *)record->data, record->data_size, WRITE_INT_RAM);
 #endif
 		if (response < 0) {
 			dev_err(&dynamite->uinterface->dev, "%s: write memory failed "
@@ -388,20 +388,20 @@ static int dynamite_set_init_fw(struct usb_dynamite *dynamite)
 
 	result = dynamite_firmware_load(dynamite, VEND_AX, RESET_CPU);
 	if (result < 0)
-		dev_info(&dynamite->uinterface->dev, "Dynamite Programmer error load VEND_AX\n");
+		dev_info(&dynamite->uinterface->dev, "%s error load VEND_AX\n", dynamite->device_name);
 
 	wait_for_finish(dynamite, WAIT_FOR_FW);
 
 	result = dynamite_firmware_load(dynamite, START, RESET_CPU);
 	if (result < 0)
-		dev_info(&dynamite->uinterface->dev, "Dynamite Programmer error load START\n");
+		dev_info(&dynamite->uinterface->dev, "%s error load START\n", dynamite->device_name);
 
 	wait_for_finish(dynamite, WAIT_FOR_FW);
 
 #if 0
 	result = send_init_command(dynamite);
 	if (result < 0)
-		dev_info(&dynamite->uinterface->dev, "Dynamite Programmer error send init command\n");
+		dev_info(&dynamite->uinterface->dev, "%s error send init command\n", dynamite->device_name);
 
 	wait_for_finish(dynamite, WAIT_FOR_FW);
 #endif
@@ -436,7 +436,7 @@ static int dynamite_set_phoenix_368_fw(struct usb_dynamite *dynamite)
 
 	result = send_phoenix_368_command(dynamite);
 	if (result >= 0)
-		dev_info(&dynamite->uinterface->dev, "Dynamite Programmer set to phoenix mode 368 mhz\n");
+		dev_info(&dynamite->uinterface->dev, "%s set to phoenix mode 368 mhz\n", dynamite->device_name);
 
 	return result;
 }
@@ -452,7 +452,7 @@ static int dynamite_set_phoenix_400_fw(struct usb_dynamite *dynamite)
 
 	result = send_phoenix_400_command(dynamite);
 	if (result >= 0)
-		dev_info(&dynamite->uinterface->dev, "Dynamite Programmer set to phoenix mode 400 mhz\n");
+		dev_info(&dynamite->uinterface->dev, "%s set to phoenix mode 400 mhz\n", dynamite->device_name);
 
 
 	return result;
@@ -469,7 +469,7 @@ static int dynamite_set_phoenix_600_fw(struct usb_dynamite *dynamite)
 
 	result = send_phoenix_600_command(dynamite);
 	if (result >= 0)
-		dev_info(&dynamite->uinterface->dev, "Dynamite Programmer set to phoenix mode 600 mhz\n");
+		dev_info(&dynamite->uinterface->dev, "%s set to phoenix mode 600 mhz\n", dynamite->device_name);
 
 	return result;
 }
@@ -485,7 +485,7 @@ static int dynamite_set_smartmouse_357_fw(struct usb_dynamite *dynamite)
 
 	result = send_smartmouse_357_command(dynamite);
 	if (result >= 0)
-		dev_info(&dynamite->uinterface->dev, "Dynamite Programmer set to smartmouse mode 357 mhz\n");
+		dev_info(&dynamite->uinterface->dev, "%s set to smartmouse mode 357 mhz\n", dynamite->device_name);
 
 	return result;
 }
@@ -501,7 +501,7 @@ static int dynamite_set_smartmouse_368_fw(struct usb_dynamite *dynamite)
 
 	result = send_smartmouse_368_command(dynamite);
 	if (result >= 0)
-		dev_info(&dynamite->uinterface->dev, "Dynamite Programmer set to smartmouse mode 368 mhz\n");
+		dev_info(&dynamite->uinterface->dev, "%s set to smartmouse mode 368 mhz\n", dynamite->device_name);
 
 	return result;
 }
@@ -517,7 +517,7 @@ static int dynamite_set_smartmouse_400_fw(struct usb_dynamite *dynamite)
 
 	result = send_smartmouse_400_command(dynamite);
 	if (result >= 0)
-		dev_info(&dynamite->uinterface->dev, "Dynamite Programmer set to smartmouse mode 400 mhz\n");
+		dev_info(&dynamite->uinterface->dev, "%s set to smartmouse mode 400 mhz\n", dynamite->device_name);
 
 	return result;
 }
@@ -533,7 +533,7 @@ static int dynamite_set_smartmouse_600_fw(struct usb_dynamite *dynamite)
 
 	result = send_smartmouse_600_command(dynamite);
 	if (result >= 0)
-		dev_info(&dynamite->uinterface->dev, "Dynamite Programmer set to smartmouse mode 600 mhz\n");
+		dev_info(&dynamite->uinterface->dev, "%s set to smartmouse mode 600 mhz\n", dynamite->device_name);
 
 	return result;
 }
@@ -545,7 +545,7 @@ static int dynamite_set_cardprogrammer_fw(struct usb_dynamite *dynamite)
         result = dynamite_firmware_load(dynamite, CARDPROGRAMMER, RESET_CPU);
 	wait_for_finish(dynamite, WAIT_FOR_FW);
 	if (result >= 0)
-		dev_info(&dynamite->uinterface->dev, "Dynamite Programmer set to card programmer mode\n");
+		dev_info(&dynamite->uinterface->dev, "%s set to card programmer mode\n", dynamite->device_name);
 
         return result;
 }
@@ -917,7 +917,7 @@ static ssize_t dynamite_write(struct file *file, const char __user *user_buffer,
 	}
 
 	if (debug_communication)
-		dump_buffer(dynamite, buf, ">>>>>>", MAX_PKT_SIZE);
+		dump_buffer(dynamite, buf, "data out", MAX_PKT_SIZE);
 
 	/* release our reference to this urb, the USB core will eventually free it entirely */
 	usb_free_urb(urb);
@@ -943,7 +943,7 @@ static int dynamite_open(struct inode *inode, struct file *file)
 
 	file->private_data = dynamite;
 
-	dev_dbg(&dynamite->uinterface->dev, "Duolabs Dynamite Programmer device opened\n");
+	dev_dbg(&dynamite->uinterface->dev, "%s Reader/Programmer device opened\n", dynamite->device_name);
 
 	return result;
 }
@@ -972,7 +972,7 @@ static int dynamite_release(struct inode *inode, struct file *file)
 	/* decrement the count on our device */
 	kref_put(&dynamite->kref, dynamite_delete);
 
-	dev_dbg(&dynamite->uinterface->dev, "Duolabs Dynamite Programmer device closed\n");
+	dev_dbg(&dynamite->uinterface->dev, "%s Reader/Programmer device closed\n", dynamite->device_name);
 
 	return result;
 }
@@ -1022,6 +1022,11 @@ static int dynamite_probe(struct usb_interface *interface, const struct usb_devi
 	dynamite->udevice = usb_get_dev(interface_to_usbdev(interface));
 	dynamite->uinterface = interface;
 
+	if ((dynamite->udevice->descriptor.idVendor == DYNAMITE_VENDOR_ID) && (dynamite->udevice->descriptor.idProduct == DYNAMITE_PRODUCT_ID))
+		dynamite->device_name = DYNAMITE;
+	else if ((dynamite->udevice->descriptor.idVendor == DYNAMITE_PLUS_VENDOR_ID) && (dynamite->udevice->descriptor.idProduct == DYNAMITE_PLUS_PRODUCT_ID))
+		dynamite->device_name = DYNAMITE_PLUS;
+
 	/* set up the endpoint information */
 	/* use only the first bulk-in and bulk-out endpoints */
 	iface_desc = interface->cur_altsetting;
@@ -1052,7 +1057,7 @@ static int dynamite_probe(struct usb_interface *interface, const struct usb_devi
 		}
 	}
 
-	if (!(dynamite->bulk_in_endpointAddr && dynamite->bulk_out_endpointAddr) && (number_of_connects >= 1)) {
+	if (!(dynamite->bulk_in_endpointAddr && dynamite->bulk_out_endpointAddr) && (dynamite->status != NOFW)) {
 		dev_err(&interface->dev, "Could not find both bulk-in and bulk-out endpoints\n");
 		goto error;
 	}
@@ -1078,18 +1083,14 @@ static int dynamite_probe(struct usb_interface *interface, const struct usb_devi
 		goto error;
 	}
 
-	if (number_of_connects == 0) {
+	if ((dynamite->udevice->descriptor.iManufacturer == NULL) && (dynamite->udevice->descriptor.iProduct == NULL)) {
+		dynamite->status = NOFW;
 		dynamite_set_init_fw(dynamite);
-		number_of_connects = 1;
 	} else {
 		dynamite->status = READY;
-		number_of_connects = 2;
 	}
 
-	dev_info(&interface->dev, "Duolabs Dynamite Programmer device now attached\n");
-
-	if (number_of_connects >= 2)
-		number_of_connects = 0;
+	dev_info(&interface->dev, "%s Reader/Programmer now attached\n", dynamite->device_name);
 
 	return 0;
 error:
@@ -1108,21 +1109,16 @@ error_mem:
 static void dynamite_disconnect(struct usb_interface *interface)
 {
 	struct usb_dynamite *dynamite;
-
 	dynamite = usb_get_intfdata(interface);
 
 	usb_deregister_dev(interface, &dynamite->uclass);
-
 	device_remove_file(&interface->dev, &dev_attr_status);
 
 	/* first remove the files, then NULL the pointer */
 	usb_set_intfdata (interface, NULL);
-
 	mutex_destroy(&dynamite->lock);
-
 	kref_put(&dynamite->kref, dynamite_delete);
-
-	dev_info(&interface->dev, "Duolabs Dynamite Programmer now disconnected\n");
+	dev_info(&interface->dev, "%s Reader/Programmer now disconnected\n", dynamite->device_name);
 }
 
 
@@ -1145,7 +1141,7 @@ static void __exit dynamite_usb_exit(void)
 module_init(dynamite_usb_init);
 module_exit(dynamite_usb_exit);
 
-#define DRIVER_AUTHOR "redbue"
+#define DRIVER_AUTHOR "redblue"
 #define DRIVER_DESC "Duolabs Dynamite Programmer driver"
 
 MODULE_AUTHOR(DRIVER_AUTHOR);

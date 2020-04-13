@@ -30,13 +30,16 @@
 #define internal_dev_info_yellow(dev, format, arg ...) pr_cont(YELLOW_COLOR "%s %s: " YELLOW_COLOR format, dev_driver_string(dev), dev_name(dev) , ##arg)
 #define internal_dev_info_blue(dev, format, arg ...) pr_cont(YELLOW_COLOR "%s %s: " BLUE_COLOR format, dev_driver_string(dev), dev_name(dev) , ##arg)
 
-#define WRITE_FUNCTIONS_INTERNAL
+//#define WRITE_FUNCTIONS_INTERNAL
 
 #define DYNAMITE_VENDOR_ID      0x0547
 #define DYNAMITE_PRODUCT_ID     0x1010
 
 #define DYNAMITE_PLUS_VENDOR_ID 0x04b4
 #define DYNAMITE_PLUS_PRODUCT_ID 0x1112
+
+#define DYNAMITE "Dynamite"
+#define DYNAMITE_PLUS "Dynamite Plus"
 
 #define CPUCS_RESET              0x1
 #define CPUCS_RUN                0x0
@@ -84,6 +87,7 @@ struct usb_dynamite {
 	struct usb_device *udevice;	 /* save off the usb device pointer */
 	struct usb_interface *uinterface; /* the interface for this device */
 	struct usb_class_driver uclass;
+	const char *device_name;
 	char *buf[MAX_PKT_SIZE];
 	int status;
 	struct mutex lock;
