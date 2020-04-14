@@ -46,7 +46,7 @@ void usage(char *prg, char *cmd)
 		char device_name[64];
 		if (ioctl(fd, IOCTL_DEVICE_INFORMATION_COMMAND, &dynamite_info_cmd) < 0)
 		{
-			fprintf(stderr, "Failed send ioctl command: SET_CARDPROGRAMMER, (%m)\n");
+			fprintf(stderr, "Failed send ioctl command: IOCTL_DEVICE_INFORMATION_COMMAND, (%m)\n");
 			exit(1);
 		}
 		fprintf(stderr, "Found device: %s, vid: 0x%04x, pid: 0x%04x, status: %s \n", dynamite_device_list[dynamite_info_cmd.device], dynamite_info_cmd.vid, dynamite_info_cmd.pid, dynamite_device_status[dynamite_info_cmd.status]);

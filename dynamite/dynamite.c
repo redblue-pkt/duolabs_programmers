@@ -41,7 +41,7 @@
 #include "dynamiteplus_init.h"
 #include "dynamite_commands.h"
 
-static int debug_communication = 0;
+static int debug_communication = DEBUG_NONE;
 module_param(debug_communication, int, 0660);
 
 #define to_dynamite_dev(d) container_of(d, struct usb_dynamite, kref)
@@ -81,7 +81,7 @@ static void dump_buffer(struct usb_dynamite *dynamite, unsigned char *buffer, ch
 			internal_dev_info(&dynamite->uinterface->dev, "");
 		for (i = 0; (i < 16) && (n + i < len); i++)
 			pr_cont("0x%02x ", buffer[n + i]);
-		if (debug_communication == 2) {
+		if (debug_communication == FULL_DEBUG_ALL || debug_communication == FULL_DEBUG_IN || debug_communication == FULL_DEBUG_OUT) {
 			for (i = 0; i < j; i++)
 				pr_cont("%1s", "     ");
 			for (i = 0; (i < 16) && (n + i < len); i++)
@@ -103,7 +103,7 @@ static int vendor_command_snd(struct usb_dynamite *dynamite, unsigned char reque
 
 	mutex_lock(&dynamite->lock);
 
-	if (debug_communication && buffer != NULL)
+	if ((debug_communication != DEBUG_NONE && debug_communication != FULL_DEBUG_IN && debug_communication != SIMPLE_DEBUG_IN) && buffer != NULL)
 		dump_buffer(dynamite, buffer, "data_out", size);
 
 	result = usb_control_msg(dynamite->udevice, usb_sndctrlpipe(dynamite->udevice, 0), request, USB_DIR_OUT | USB_TYPE_VENDOR | USB_RECIP_DEVICE, address, index, buffer, size, 1000);
@@ -123,7 +123,7 @@ static int vendor_command_rcv(struct usb_dynamite *dynamite, unsigned char reque
 
 	result = usb_control_msg(dynamite->udevice, usb_rcvctrlpipe(dynamite->udevice, 0), request, USB_DIR_IN | USB_TYPE_VENDOR | USB_RECIP_DEVICE, address, index, buf, size, 1000);
 
-	if (debug_communication && buf != NULL)
+	if ((debug_communication != DEBUG_NONE && debug_communication != FULL_DEBUG_OUT && debug_communication != SIMPLE_DEBUG_OUT) && buf != NULL)
 		dump_buffer(dynamite, buf, "data_in", size);
 
 	mutex_unlock(&dynamite->lock);
@@ -151,7 +151,7 @@ static int bulk_command_snd(struct usb_dynamite *dynamite, const char *buf, int 
 
 	mutex_lock(&dynamite->lock);
 
-	if (debug_communication && buffer != NULL)
+	if ((debug_communication != DEBUG_NONE && debug_communication != FULL_DEBUG_IN && debug_communication != SIMPLE_DEBUG_IN) && buffer != NULL)
 		dump_buffer(dynamite, buffer, "data_out", MAX_PKT_SIZE);
 
 	result = usb_bulk_msg(dynamite->udevice, usb_sndbulkpipe(dynamite->udevice, dynamite->bulk_out_endpointAddr), buffer, size, NULL, 1000);
@@ -171,7 +171,7 @@ static int bulk_command_rcv(struct usb_dynamite *dynamite, char *buf, int size, 
 
 	result = usb_bulk_msg(dynamite->udevice, usb_rcvbulkpipe(dynamite->udevice, dynamite->bulk_in_endpointAddr), buf, size, NULL, 1000);
 
-	if (debug_communication && buf != NULL)
+	if ((debug_communication != DEBUG_NONE && debug_communication != FULL_DEBUG_OUT && debug_communication != SIMPLE_DEBUG_OUT) && buf != NULL)
 		dump_buffer(dynamite, buf, "data_in", MAX_PKT_SIZE);
 
 	mutex_unlock(&dynamite->lock);
@@ -1034,9 +1034,10 @@ static int dynamite_probe(struct usb_interface *interface, const struct usb_devi
 
 #if 0
 	if (dynamite->status != NOFW) {
+		dev_info(&dynamite->uinterface->dev, "%s send init command\n", dynamite->device_name);
 		result = send_init_command(dynamite);
 		if (result < 0)
-			dev_info(&dynamite->uinterface->dev, "%s error send init command\n", dynamite->device_name);
+			dev_err(&dynamite->uinterface->dev, "%s error send init command\n", dynamite->device_name);
 	}
 #endif
 	usb_set_intfdata(interface, dynamite);

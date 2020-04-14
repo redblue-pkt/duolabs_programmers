@@ -59,6 +59,16 @@ typedef enum {
 	FINISH_LOAD_CARDPROGRAMMER_FW	= 7,
 } dynamite_fimware_status_t;
 
+typedef enum {
+	DEBUG_NONE		= 0,
+	FULL_DEBUG_ALL		= 1,
+	SIMPLE_DEBUG_ALL	= 2,
+	FULL_DEBUG_IN		= 3,
+	FULL_DEBUG_OUT		= 4,
+	SIMPLE_DEBUG_IN		= 5,
+	SIMPLE_DEBUG_OUT	= 6,
+} dynamite_debug_t;
+
 #define MIN(a,b) (((a) <= (b)) ? (a) : (b))
 #define MAX_PKT_SIZE 64
 
