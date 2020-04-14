@@ -38,6 +38,7 @@
 
 #include "dynamite_ioctl.h"
 #include "dynamite_init.h"
+#include "dynamiteplus_init.h"
 #include "dynamite_commands.h"
 
 static int debug_communication = 0;
@@ -72,9 +73,9 @@ static void dump_buffer(struct usb_dynamite *dynamite, unsigned char *buffer, ch
 	int j = 16 - len;
 
 	for (n = 0; n < len; n += i) {
-		if (!strncmp(name, "data out", 8))
+		if (!strncmp(name, "data_out", 8))
 			internal_dev_info_green(&dynamite->uinterface->dev, "%s ", name);
-		else if (!strncmp(name, "data in", 7))
+		else if (!strncmp(name, "data_in", 7))
 			internal_dev_info_blue(&dynamite->uinterface->dev, "%s ", name);
 		else
 			internal_dev_info(&dynamite->uinterface->dev, "");
@@ -103,7 +104,7 @@ static int vendor_command_snd(struct usb_dynamite *dynamite, unsigned char reque
 	mutex_lock(&dynamite->lock);
 
 	if (debug_communication && buffer != NULL)
-		dump_buffer(dynamite, buffer, "data out", size);
+		dump_buffer(dynamite, buffer, "data_out", size);
 
 	result = usb_control_msg(dynamite->udevice, usb_sndctrlpipe(dynamite->udevice, 0), request, USB_DIR_OUT | USB_TYPE_VENDOR | USB_RECIP_DEVICE, address, index, buffer, size, 1000);
 
@@ -123,7 +124,7 @@ static int vendor_command_rcv(struct usb_dynamite *dynamite, unsigned char reque
 	result = usb_control_msg(dynamite->udevice, usb_rcvctrlpipe(dynamite->udevice, 0), request, USB_DIR_IN | USB_TYPE_VENDOR | USB_RECIP_DEVICE, address, index, buf, size, 1000);
 
 	if (debug_communication && buf != NULL)
-		dump_buffer(dynamite, buf, "data in", size);
+		dump_buffer(dynamite, buf, "data_in", size);
 
 	mutex_unlock(&dynamite->lock);
 
@@ -151,7 +152,7 @@ static int bulk_command_snd(struct usb_dynamite *dynamite, const char *buf, int 
 	mutex_lock(&dynamite->lock);
 
 	if (debug_communication && buffer != NULL)
-		dump_buffer(dynamite, buffer, "data out", MAX_PKT_SIZE);
+		dump_buffer(dynamite, buffer, "data_out", MAX_PKT_SIZE);
 
 	result = usb_bulk_msg(dynamite->udevice, usb_sndbulkpipe(dynamite->udevice, dynamite->bulk_out_endpointAddr), buffer, size, NULL, 1000);
 
@@ -171,7 +172,7 @@ static int bulk_command_rcv(struct usb_dynamite *dynamite, char *buf, int size, 
 	result = usb_bulk_msg(dynamite->udevice, usb_rcvbulkpipe(dynamite->udevice, dynamite->bulk_in_endpointAddr), buf, size, NULL, 1000);
 
 	if (debug_communication && buf != NULL)
-		dump_buffer(dynamite, buf, "data in", MAX_PKT_SIZE);
+		dump_buffer(dynamite, buf, "data_in", MAX_PKT_SIZE);
 
 	mutex_unlock(&dynamite->lock);
 
@@ -183,9 +184,12 @@ static int send_command(struct usb_dynamite *dynamite, int id)
 	int i, result;
 	const struct dynamite_hex_record *record = NULL;
 
-	if (id == START)
-		record = &init_code[0];
-	else if (id == PHOENIX_357)
+	if (id == START) {
+		if (dynamite->device_running == DYNAMITE_DEVICE)
+			record = &dynamite_init_code[0];
+		else if (dynamite->device_running == DYNAMITE_PLUS_DEVICE)
+			record = &dynamiteplus_init_code[0];
+	} else if (id == PHOENIX_357)
 		record = &phoenix_357_code[0];
 	else if (id == PHOENIX_368)
 		record = &phoenix_368_code[0];
@@ -789,8 +793,6 @@ static long dynamite_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 			dynamite_info_cmd.vid = dynamite->udevice->descriptor.idVendor;
 			dynamite_info_cmd.pid = dynamite->udevice->descriptor.idProduct;
 
-			dev_info(&dynamite->uinterface->dev, "dynamite_info_cmd.status: %s, dynamite->status: %s, %d %d\n", dynamite_device_list[dynamite_info_cmd.device], dynamite_device_status[dynamite_info_cmd.status], dynamite_info_cmd.status, dynamite->status);
-
 			if (copy_to_user((void *)arg, &dynamite_info_cmd, sizeof(dynamite_info_cmd))) {
 				result = -EFAULT;
 				goto err_out;
@@ -1029,12 +1031,13 @@ static int dynamite_probe(struct usb_interface *interface, const struct usb_devi
 		dev_err(&interface->dev, "Could not find both bulk-in and bulk-out endpoints\n");
 		goto error;
 	}
+
 #if 0
-	if (number_of_connects >= 1) {
+	if (dynamite->status != NOFW) {
 		result = send_init_command(dynamite);
 		if (result < 0)
-			dev_info(&dynamite->uinterface->dev, "Dynamite Programmer error send init command\n");
-        }
+			dev_info(&dynamite->uinterface->dev, "%s error send init command\n", dynamite->device_name);
+	}
 #endif
 	usb_set_intfdata(interface, dynamite);
 

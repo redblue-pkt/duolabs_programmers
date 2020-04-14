@@ -82,14 +82,6 @@ struct usb_dynamite {
 	struct kref kref;
 };
 
-/* Struct used for firmware - increased size of data section
-   to allow Keyspan's 'C' firmware struct to be used unmodified */
-struct ezusb_hex_record {
-	__u16 address;
-	__u8 data_size;
-	__u8 data[64];
-};
-
 struct dynamite_hex_record {
 	__u8 data_size;
 	__u8 data[64];

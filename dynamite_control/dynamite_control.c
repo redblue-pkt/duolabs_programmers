@@ -4,6 +4,7 @@
 #include <linux/input.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <string.h>
 
 #include "../dynamite/dynamite_ioctl.h"
 
