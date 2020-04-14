@@ -23,6 +23,74 @@
 #include <linux/ioctl.h>
 
 typedef enum {
+	NOFW		= 0,
+	READY		= 1,
+	VEND_AX		= 2,
+	START		= 3,
+ 	MOUSE_PHOENIX	= 4,
+	PHOENIX_357	= 5,
+	PHOENIX_368	= 6,
+	PHOENIX_400	= 7,
+	PHOENIX_600	= 8,
+	SMARTMOUSE_357	= 9,
+	SMARTMOUSE_368	= 10,
+	SMARTMOUSE_400	= 11,
+	SMARTMOUSE_600	= 12,
+	CARDPROGRAMMER	= 13,
+} dynamite_device_status_t;
+
+const char *dynamite_device_status[] = {
+	"nofw",
+	"ready",
+	"vend_ax",
+	"start",
+	"mouse_phoenix",
+	"phoenix357",
+	"phoenix368",
+	"phoenix400",
+	"phoenix600",
+	"smartmouse357",
+	"smartmouse368",
+	"smartmouse400",
+	"smartmopuse600",
+	"cardprogrammer",
+};
+
+typedef enum {
+	NONE_DEVICE = 0,
+	DYNAMITE_DEVICE = 1,
+	DYNAMITE_PLUS_DEVICE = 2,
+	DYNAMITE_TINY_DEVICE = 3,
+} dynamite_device_list_t;
+
+const char *dynamite_device_list[] = {
+	"nodevice",
+	"dynamite",
+	"dynamiteplus",
+	"dynamitetiny",
+};
+
+struct dynamite_bulk_command {
+	short length;
+	void *buffer;
+};
+
+struct dynamite_vendor_command {
+	short length;
+	int request;
+	int address;
+	int index;
+	void *buffer;
+};
+
+struct dynamite_device_information_command {
+	int device;
+	int status;
+	int vid;
+	int pid;
+};
+
+typedef enum {
 	IOCTL_SET_PHOENIX_357 = 0x000000c1,
 	IOCTL_SET_PHOENIX_368 = 0x000000c2,
 	IOCTL_SET_PHOENIX_400 = 0x000000c3,
@@ -36,7 +104,7 @@ typedef enum {
 	IOCTL_RECV_BULK_COMMAND = 0x00000c12,
 	IOCTL_SEND_VENDOR_COMMAND = 0x00000c13,
 	IOCTL_RECV_VENDOR_COMMAND = 0x00000c14,
-	IOCTL_DEVICE_INFORMATION = 0x00000c15,
+	IOCTL_DEVICE_INFORMATION_COMMAND = 0x00000c15,
 } dynamite_ioctl_command_t;
 
 #define IOCTL_DIR_OUT 0x0

@@ -49,23 +49,6 @@
 #define WAIT_FOR_FW 2000
 
 typedef enum {
-	NOFW		= 0,
-	READY		= 1,
-	VEND_AX 	= 2,
-	START	 	= 3,
-	MOUSE_PHOENIX	= 4,
-	PHOENIX_357 	= 5,
-	PHOENIX_368 	= 6,
-	PHOENIX_400 	= 7,
-	PHOENIX_600 	= 8,
-	SMARTMOUSE_357 	= 9,
-	SMARTMOUSE_368 	= 10,
-	SMARTMOUSE_400 	= 11,
-	SMARTMOUSE_600 	= 12,
-	CARDPROGRAMMER 	= 13,
-} dynamite_t;
-
-typedef enum {
 	START_LOAD_VEND_AX_FW		= 0,
 	FINISH_LOAD_VEND_AX_FW		= 1,
 	START_LOAD_START_FW		= 2,
@@ -74,14 +57,7 @@ typedef enum {
 	FINISH_LOAD_MOUSE_PHOENIX_FW	= 5,
 	START_LOAD_CARDPROGRAMMER_FW	= 6,
 	FINISH_LOAD_CARDPROGRAMMER_FW	= 7,
-} state_t;
-
-typedef enum {
-	NONE_DEVICE = 0,
-	DYNAMITE_DEVICE = 1,
-	DYNAMITE_PLUS_DEVICE = 2,
-	DYNAMITE_TINY_DEVICE = 3,
-} device_t;
+} dynamite_fimware_status_t;
 
 #define MIN(a,b) (((a) <= (b)) ? (a) : (b))
 #define MAX_PKT_SIZE 64
@@ -117,19 +93,6 @@ struct ezusb_hex_record {
 struct dynamite_hex_record {
 	__u8 data_size;
 	__u8 data[64];
-};
-
-struct dynamite_bulk_command {
-	short length;
-	void *buffer;
-};
-
-struct dynamite_vendor_command {
-	short length;
-	int request;
-	int address;
-	int index;
-	void *buffer;
 };
 
 #define NORMAL_COLOR  "\x1B[0m"

@@ -28,17 +28,31 @@ void usage(char *prg, char *cmd)
 {
 	int i;
 
+	struct dynamite_device_information_command dynamite_info_cmd;
+
 	FILE *fdynamite = fopen(DYNAMITE_DEVICE, "r");
 
 	/* or printout a default usage */
 	fprintf(stderr, "Dynamite Programmer control tool, version 1.00\n");
 	if (fdynamite)
 	{
-		fprintf(stderr, "Found Duolabs Dynamite Programmer\n");
+		fd = open(DYNAMITE_DEVICE, O_RDWR);
+		if (fd < 0)
+		{
+			fprintf(stderr, "Failed open device: %s\n", DYNAMITE_DEVICE);
+			exit(1);
+		}
+		char device_name[64];
+		if (ioctl(fd, IOCTL_DEVICE_INFORMATION_COMMAND, &dynamite_info_cmd) < 0)
+		{
+			fprintf(stderr, "Failed send ioctl command: SET_CARDPROGRAMMER, (%m)\n");
+			exit(1);
+		}
+		fprintf(stderr, "Found device: %s, vid: 0x%04x, pid: 0x%04x, status: %s \n", dynamite_device_list[dynamite_info_cmd.device], dynamite_info_cmd.vid, dynamite_info_cmd.pid, dynamite_device_status[dynamite_info_cmd.status]);
 	}
 	else
 	{
-		fprintf(stderr, "Not found Duolabs Dynamite Programmer\n");
+		fprintf(stderr, "Device not found.\n");
 		exit(1);
 	}
 	fprintf(stderr, "\n");
@@ -57,7 +71,7 @@ void usage(char *prg, char *cmd)
 
 int main(int argc, char *argv[])
 {
-	int i, fd;
+	int i;
 	if (argc > 1)
 	{
 		i = 1;

@@ -350,18 +350,17 @@ out:
 	return response;
 }
 
-//MODULE_FIRMWARE("dynamite/vend_ax.hex");
-//MODULE_FIRMWARE("dynamite/start.hex");
-
 static int dynamite_set_init_fw(struct usb_dynamite *dynamite)
 {
 	int result;
 
-	result = dynamite_firmware_load(dynamite, VEND_AX, RESET_CPU);
-	if (result < 0)
-		dev_info(&dynamite->uinterface->dev, "%s error load VEND_AX\n", dynamite->device_name);
+	if (dynamite->device_running == DYNAMITE_DEVICE) {
+		result = dynamite_firmware_load(dynamite, VEND_AX, RESET_CPU);
+		if (result < 0)
+			dev_info(&dynamite->uinterface->dev, "%s error load VEND_AX\n", dynamite->device_name);
 
-	wait_for_finish(dynamite, WAIT_FOR_FW);
+		wait_for_finish(dynamite, WAIT_FOR_FW);
+	}
 
 	result = dynamite_firmware_load(dynamite, START, RESET_CPU);
 	if (result < 0)
@@ -391,7 +390,7 @@ static int dynamite_set_phoenix_357_fw(struct usb_dynamite *dynamite)
 
 	result = send_phoenix_357_command(dynamite);
 	if (result >= 0)
-		dev_info(&dynamite->uinterface->dev, "Dynamite Programmer set to phoenix mode 357 mhz\n");
+		dev_info(&dynamite->uinterface->dev, "%s set to phoenix mode 357 mhz\n", dynamite->device_name);
 
 	return result;
 }
@@ -526,30 +525,7 @@ static ssize_t status_show(struct device *dev, struct device_attribute *attr, ch
 	struct usb_interface *interface = usb_find_interface(&dynamite_driver, 0);
 	struct usb_dynamite *dynamite = usb_get_intfdata(interface);
 
-	const char * status;
-
-	if (dynamite->status == NOFW)
-		status = "nofw";
-	else if (dynamite->status == READY)
-		status = "ready";
-	else if (dynamite->status == PHOENIX_357)
-		status = "phoenix357";
-	else if (dynamite->status == PHOENIX_368)
-		status = "phoenix368";
-	else if (dynamite->status == PHOENIX_400)
-		status = "phoenix400";
-	else if (dynamite->status == PHOENIX_600)
-		status = "phoenix600";
-	else if (dynamite->status == SMARTMOUSE_357)
-		status = "smartmouse357";
-	else if (dynamite->status == SMARTMOUSE_368)
-		status = "smartmouse368";
-	else if (dynamite->status == SMARTMOUSE_400)
-		status = "smarmouse400";
-	else if (dynamite->status == SMARTMOUSE_600)
-		status = "smartmouse600";
-
-	return sprintf(buf, "%s\n", status);
+	return sprintf(buf, "%s", dynamite_device_status[dynamite->status]);
 }
 
 static ssize_t status_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
@@ -599,6 +575,8 @@ static long dynamite_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 
 	struct dynamite_bulk_command dynamite_bulk_cmd;
 	struct dynamite_vendor_command dynamite_vendor_cmd;
+	struct dynamite_device_information_command dynamite_info_cmd;
+
 	void *data;
 	unsigned char *buffer;
 
@@ -805,6 +783,19 @@ static long dynamite_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 				dev_dbg(&dynamite->uinterface->dev, "Executed IOCTL_SEND_BULK_COMMAND ioctl, result = %d", le32_to_cpu(result));
 			free_page((unsigned long) buffer);
 			break;
+		case IOCTL_DEVICE_INFORMATION_COMMAND:
+			dynamite_info_cmd.device = dynamite->device_running;
+			dynamite_info_cmd.status = dynamite->status;
+			dynamite_info_cmd.vid = dynamite->udevice->descriptor.idVendor;
+			dynamite_info_cmd.pid = dynamite->udevice->descriptor.idProduct;
+
+			dev_info(&dynamite->uinterface->dev, "dynamite_info_cmd.status: %s, dynamite->status: %s, %d %d\n", dynamite_device_list[dynamite_info_cmd.device], dynamite_device_status[dynamite_info_cmd.status], dynamite_info_cmd.status, dynamite->status);
+
+			if (copy_to_user((void *)arg, &dynamite_info_cmd, sizeof(dynamite_info_cmd))) {
+				result = -EFAULT;
+				goto err_out;
+			}
+			break;
 		default:
 			dev_info(&dynamite->uinterface->dev, "Unknown ioctl command 0x%x\n", cmd);
 			result = -ENOTTY;
@@ -1000,8 +991,9 @@ static int dynamite_probe(struct usb_interface *interface, const struct usb_devi
 	} else if ((dynamite->udevice->descriptor.idVendor == DYNAMITE_PLUS_VENDOR_ID) && ((dynamite->udevice->descriptor.idProduct == DYNAMITE_PLUS_PREENUMERATION_PRODUCT_ID) || (dynamite->udevice->descriptor.idProduct == DYNAMITE_PLUS_PRODUCT_ID))) {
 		dynamite->device_name = DYNAMITE_PLUS;
 		dynamite->device_running = DYNAMITE_PLUS_DEVICE;
-	} else
+	} else {
 		dynamite->device_running = NONE_DEVICE;
+	}
 
 	/* set up the endpoint information */
 	/* use only the first bulk-in and bulk-out endpoints */
