@@ -40,8 +40,8 @@
 #define DYNAMITE "Dynamite"
 #define DYNAMITE_PLUS "Dynamite Plus"
 
-#define CPUCS_RESET              0x1
-#define CPUCS_RUN                0x0
+#define SET_EE_VALUE                      0x10
+#define GET_EE_VALUE                      0x11
 
 #define NO_RESET_CPU 0
 #define RESET_CPU 1

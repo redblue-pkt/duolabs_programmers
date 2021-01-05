@@ -41,8 +41,9 @@
 #include "dynamiteplus_init.h"
 #include "dynamite_commands.h"
 
-static int debug_communication = DEBUG_NONE;
-module_param(debug_communication, int, 0660);
+static int debug = DEBUG_NONE;
+static int load_fx1_fw = 0;
+static int load_fx2_fw = 0;
 
 #define to_dynamite_dev(d) container_of(d, struct usb_dynamite, kref)
 
@@ -81,7 +82,7 @@ static void dump_buffer(struct usb_dynamite *dynamite, unsigned char *buffer, ch
 			internal_dev_info(&dynamite->uinterface->dev, "");
 		for (i = 0; (i < 16) && (n + i < len); i++)
 			pr_cont("0x%02x ", buffer[n + i]);
-		if (debug_communication == FULL_DEBUG_ALL || debug_communication == FULL_DEBUG_IN || debug_communication == FULL_DEBUG_OUT) {
+		if (debug == FULL_DEBUG_ALL || debug == FULL_DEBUG_IN || debug == FULL_DEBUG_OUT) {
 			for (i = 0; i < j; i++)
 				pr_cont("%1s", "     ");
 			for (i = 0; (i < 16) && (n + i < len); i++)
@@ -103,10 +104,10 @@ static int vendor_command_snd(struct usb_dynamite *dynamite, unsigned char reque
 
 	mutex_lock(&dynamite->lock);
 
-	if ((debug_communication != DEBUG_NONE && debug_communication != FULL_DEBUG_IN && debug_communication != SIMPLE_DEBUG_IN) && buffer != NULL)
+	if ((debug != DEBUG_NONE && debug != FULL_DEBUG_IN && debug != SIMPLE_DEBUG_IN) && buffer != NULL)
 		dump_buffer(dynamite, buffer, "data_out", size);
 
-	result = usb_control_msg(dynamite->udevice, usb_sndctrlpipe(dynamite->udevice, 0), request, USB_DIR_OUT | USB_TYPE_VENDOR | USB_RECIP_DEVICE, address, index, buffer, size, 1000);
+	result = usb_control_msg(dynamite->udevice, usb_sndctrlpipe(dynamite->udevice, 0), request, USB_DIR_OUT | USB_TYPE_VENDOR | USB_RECIP_DEVICE, address, 0, buffer, size, 3000);
 
 	mutex_unlock(&dynamite->lock);
 
@@ -121,9 +122,9 @@ static int vendor_command_rcv(struct usb_dynamite *dynamite, unsigned char reque
 
 	mutex_lock(&dynamite->lock);
 
-	result = usb_control_msg(dynamite->udevice, usb_rcvctrlpipe(dynamite->udevice, 0), request, USB_DIR_IN | USB_TYPE_VENDOR | USB_RECIP_DEVICE, address, index, buf, size, 1000);
+	result = usb_control_msg(dynamite->udevice, usb_rcvctrlpipe(dynamite->udevice, 0), request, USB_DIR_IN | USB_TYPE_VENDOR | USB_RECIP_DEVICE, address, 0, buf, size, 3000);
 
-	if ((debug_communication != DEBUG_NONE && debug_communication != FULL_DEBUG_OUT && debug_communication != SIMPLE_DEBUG_OUT) && buf != NULL)
+	if ((debug != DEBUG_NONE && debug != FULL_DEBUG_OUT && debug != SIMPLE_DEBUG_OUT) && buf != NULL)
 		dump_buffer(dynamite, buf, "data_in", size);
 
 	mutex_unlock(&dynamite->lock);
@@ -151,7 +152,7 @@ static int bulk_command_snd(struct usb_dynamite *dynamite, const char *buf, int 
 
 	mutex_lock(&dynamite->lock);
 
-	if ((debug_communication != DEBUG_NONE && debug_communication != FULL_DEBUG_IN && debug_communication != SIMPLE_DEBUG_IN) && buffer != NULL)
+	if ((debug != DEBUG_NONE && debug != FULL_DEBUG_IN && debug != SIMPLE_DEBUG_IN) && buffer != NULL)
 		dump_buffer(dynamite, buffer, "data_out", MAX_PKT_SIZE);
 
 	result = usb_bulk_msg(dynamite->udevice, usb_sndbulkpipe(dynamite->udevice, dynamite->bulk_out_endpointAddr), buffer, size, NULL, 1000);
@@ -171,11 +172,27 @@ static int bulk_command_rcv(struct usb_dynamite *dynamite, char *buf, int size, 
 
 	result = usb_bulk_msg(dynamite->udevice, usb_rcvbulkpipe(dynamite->udevice, dynamite->bulk_in_endpointAddr), buf, size, NULL, 1000);
 
-	if ((debug_communication != DEBUG_NONE && debug_communication != FULL_DEBUG_OUT && debug_communication != SIMPLE_DEBUG_OUT) && buf != NULL)
+	if ((debug != DEBUG_NONE && debug != FULL_DEBUG_OUT && debug != SIMPLE_DEBUG_OUT) && buf != NULL)
 		dump_buffer(dynamite, buf, "data_in", MAX_PKT_SIZE);
 
 	mutex_unlock(&dynamite->lock);
 
+	return result;
+}
+
+static int read_eeprom(struct usb_dynamite *dynamite,unsigned char *buf, int len, int offset)
+{
+	int i, result;
+	char *v, br[2];
+	for (i=0; i < len; i++) {
+		v = offset + i;
+		result = vendor_command_rcv(dynamite, 0xA2, 0, 0, v, 2);
+		if (result)
+			return result;
+
+		buf[i] = br[1];
+	}
+	dev_info(&dynamite->uinterface->dev, "read eeprom (offset: 0x%x, len: %d) : ", offset, i);
 	return result;
 }
 
@@ -290,10 +307,16 @@ static int dynamite_firmware_load(struct usb_dynamite *dynamite, int id, int res
 			fw_name = "dynamite/vend_ax.fw";
 		dynamite->state = START_LOAD_VEND_AX_FW;
 	} else if (le16_to_cpu(id) == START) {
-		if (dynamite->device_running == DYNAMITE_DEVICE)
-			fw_name = "dynamite/start.fw";
-		else if (dynamite->device_running == DYNAMITE_PLUS_DEVICE)
-			fw_name = "dynamiteplus/start.fw";
+		if (load_fx1_fw)
+			fw_name = "fx1/start.fw";
+		else if (load_fx2_fw)
+			fw_name = "fx2/start.fw";
+		else {
+			if (dynamite->device_running == DYNAMITE_DEVICE)
+				fw_name = "dynamite/start.fw";
+			else if (dynamite->device_running == DYNAMITE_PLUS_DEVICE)
+				fw_name = "dynamiteplus/start.fw";
+		}
 		dynamite->state = START_LOAD_START_FW;
 	} else if (le16_to_cpu(id) == MOUSE_PHOENIX) {
 		if (dynamite->device_running == DYNAMITE_DEVICE)
@@ -349,7 +372,7 @@ static int dynamite_firmware_load(struct usb_dynamite *dynamite, int id, int res
 	else if (dynamite->state == START_LOAD_CARDPROGRAMMER_FW)
 		dynamite->state = FINISH_LOAD_CARDPROGRAMMER_FW;
 
-	return 0;
+	return 1;
 out:
 	return response;
 }
@@ -687,7 +710,7 @@ static long dynamite_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 			if (result < 0)
 				dev_err(&dynamite->uinterface->dev, "Error executing IOCTL_RECV_VENDOR_COMMAND ioctrl, result = %d", le32_to_cpu(result));
 			else
-				dev_info(&dynamite->uinterface->dev, "Executed IOCTL_RECV_VENDOR_COMMAND ioctl, result = %d", le32_to_cpu(result));
+				dev_dbg(&dynamite->uinterface->dev, "Executed IOCTL_RECV_VENDOR_COMMAND ioctl, result = %d", le32_to_cpu(result));
 			if (copy_to_user(dynamite_vendor_cmd.buffer, buffer, dynamite_vendor_cmd.length)) {
 				free_page((unsigned long) buffer);
 				result = -EFAULT;
@@ -717,11 +740,11 @@ static long dynamite_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 				result = -EFAULT;
 				goto err_out;
 			}
-			result = vendor_command_rcv(dynamite, dynamite_vendor_cmd.request, dynamite_vendor_cmd.address, dynamite_vendor_cmd.index, buffer, dynamite_vendor_cmd.length);
+			result = vendor_command_snd(dynamite, dynamite_vendor_cmd.request, dynamite_vendor_cmd.address, dynamite_vendor_cmd.index, buffer, dynamite_vendor_cmd.length);
 			if (result < 0)
 				dev_err(&dynamite->uinterface->dev, "Error executing IOCTL_SEND_VENDOR_COMMAND ioctrl, result = %d", le32_to_cpu(result));
 			else
-				dev_info(&dynamite->uinterface->dev, "Executed IOCTL_SEND_VENDOR_COMMAND ioctl, result = %d", le32_to_cpu(result));
+				dev_dbg(&dynamite->uinterface->dev, "Executed IOCTL_SEND_VENDOR_COMMAND ioctl, result = %d", le32_to_cpu(result));
 			free_page((unsigned long) buffer);
 			break;
 		case IOCTL_RECV_BULK_COMMAND:
@@ -880,8 +903,8 @@ static ssize_t dynamite_write(struct file *file, const char __user *user_buffer,
 		goto error;
 	}
 
-	if (debug_communication)
-		dump_buffer(dynamite, buf, "data out", MAX_PKT_SIZE);
+	if (debug)
+		dump_buffer(dynamite, buf, "data_out", MAX_PKT_SIZE);
 
 	/* release our reference to this urb, the USB core will eventually free it entirely */
 	usb_free_urb(urb);
@@ -978,6 +1001,8 @@ static int dynamite_probe(struct usb_interface *interface, const struct usb_devi
 	struct usb_dynamite *dynamite;
 	int i, result = -ENOMEM;
 
+	int init;
+
 	dynamite = kzalloc(sizeof(struct usb_dynamite), GFP_KERNEL);
 	if (!dynamite)
 		goto error_mem;
@@ -1032,8 +1057,8 @@ static int dynamite_probe(struct usb_interface *interface, const struct usb_devi
 		goto error;
 	}
 
-#if 0
-	if (dynamite->status != NOFW) {
+#if 1
+	if ((dynamite->udevice->descriptor.iManufacturer != NULL) && (dynamite->udevice->descriptor.iProduct != NULL)) {
 		dev_info(&dynamite->uinterface->dev, "%s send init command\n", dynamite->device_name);
 		result = send_init_command(dynamite);
 		if (result < 0)
@@ -1060,6 +1085,8 @@ static int dynamite_probe(struct usb_interface *interface, const struct usb_devi
 		dynamite_set_init_fw(dynamite);
 	} else {
 		dynamite->status = READY;
+		//unsigned char buf[64];
+		//read_eeprom(dynamite, buf, 64, 0);
 	}
 
 	dev_info(&interface->dev, "%s Reader/Programmer now attached\n", dynamite->device_name);
@@ -1115,6 +1142,10 @@ module_exit(dynamite_usb_exit);
 
 #define DRIVER_AUTHOR "redblue"
 #define DRIVER_DESC "Duolabs Dynamite Programmer driver"
+
+module_param(debug, int, 0660);
+module_param(load_fx1_fw, int, 0660);
+module_param(load_fx2_fw, int, 0660);
 
 MODULE_AUTHOR(DRIVER_AUTHOR);
 MODULE_DESCRIPTION(DRIVER_DESC);

@@ -39,7 +39,7 @@ typedef enum {
 	CARDPROGRAMMER	= 13,
 } dynamite_device_status_t;
 
-const char *dynamite_device_status[] = {
+static const char *dynamite_device_status[] = {
 	"nofw",
 	"ready",
 	"vend_ax",
@@ -63,7 +63,7 @@ typedef enum {
 	DYNAMITE_TINY_DEVICE = 3,
 } dynamite_device_list_t;
 
-const char *dynamite_device_list[] = {
+static const char *dynamite_device_list[] = {
 	"nodevice",
 	"dynamite",
 	"dynamiteplus",
@@ -105,7 +105,7 @@ typedef enum {
 	IOCTL_SEND_VENDOR_COMMAND = 0x00000c13,
 	IOCTL_RECV_VENDOR_COMMAND = 0x00000c14,
 	IOCTL_DEVICE_INFORMATION_COMMAND = 0x00000c15,
-} dynamite_ioctl_command_t;
+} _dynamite_ioctl_command_t;
 
 #define IOCTL_DIR_OUT 0x0
 #define IOCTL_DIR_IN 0x1
