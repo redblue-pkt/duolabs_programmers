@@ -73,6 +73,8 @@ typedef enum {
 	FINISH_LOAD_XCAM_FW		= 23,
 	START_LOAD_JOKER_FW		= 24,
 	FINISH_LOAD_JOKER_FW		= 25,
+	START_LOAD_HOST_FW		= 26,
+	FINISH_LOAD_HOST_FW		= 27,
 } dynamite_fimware_status_t;
 
 typedef enum {

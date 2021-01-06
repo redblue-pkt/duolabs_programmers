@@ -46,6 +46,7 @@ typedef enum {
 	EXTREME		= 20,
 	JOKER		= 21,
 	XCAM		= 22,
+	HOST		= 23,
 } cas_device_status_t;
 
 static const char *cas_device_status[] = {
@@ -72,6 +73,7 @@ static const char *cas_device_status[] = {
 	"extreme",
 	"joker",
 	"xcam",
+	"host",
 };
 
 typedef enum {
@@ -129,11 +131,12 @@ typedef enum {
 	IOCTL_SET_DRAGON = 0x00000c15,
 	IOCTL_SET_XCAM = 0x00000c16,
 	IOCTL_SET_JOKER = 0x00000c17,
-	IOCTL_SEND_BULK_COMMAND = 0x00000c18,
-	IOCTL_RECV_BULK_COMMAND = 0x00000c19,
-	IOCTL_SEND_VENDOR_COMMAND = 0x00000c20,
-	IOCTL_RECV_VENDOR_COMMAND = 0x00000c21,
-	IOCTL_DEVICE_INFORMATION_COMMAND = 0x00000c22,
+	IOCTL_SET_HOST = 0x00000c18,
+	IOCTL_SEND_BULK_COMMAND = 0x00000c19,
+	IOCTL_RECV_BULK_COMMAND = 0x00000c20,
+	IOCTL_SEND_VENDOR_COMMAND = 0x00000c21,
+	IOCTL_RECV_VENDOR_COMMAND = 0x00000c22,
+	IOCTL_DEVICE_INFORMATION_COMMAND = 0x00000c23,
 } _cas_ioctl_command_t;
 
 #define IOCTL_DIR_OUT 0x0

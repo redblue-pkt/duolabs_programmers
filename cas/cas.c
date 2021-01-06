@@ -214,12 +214,12 @@ static int device_verification(struct usb_cas *cas, int type)
 			case MM:
 			case JTAG:
 			case PROGRAMMER:
-			case DREAMBOX:
 			case DIABLO:
 			case DRAGON:
 			case EXTREME:
 			case JOKER:
 			case XCAM:
+			case HOST:
 				result = 1;
 				break;
 			default:
@@ -264,6 +264,8 @@ static int send_command(struct usb_cas *cas, int id)
 		record = &smartmouse_400_code[0];
 	else if (id == SMARTMOUSE_600)
 		record = &smartmouse_600_code[0];
+	else if (id == HOST)
+		record = &cam_host_code[0];
 
 	while(record->data_size != 0) {
 		result = bulk_command_snd(cas, (unsigned char *)record->data, record->data_size, 0);
@@ -325,6 +327,11 @@ static int send_smartmouse_600_command(struct usb_cas *cas)
 	return send_command(cas, SMARTMOUSE_600);
 }
 
+static int send_host_command(struct usb_cas *cas)
+{
+	return send_command(cas, HOST);
+}
+
 static int cas_firmware_load(struct usb_cas *cas, int id, int reset_cpu)
 {
 	int response = -ENOENT;
@@ -373,6 +380,11 @@ static int cas_firmware_load(struct usb_cas *cas, int id, int reset_cpu)
 		else if (cas->device_running == CAS2_PLUS2_CRYPTO_DEVICE)
 			fw_name = "cas2pluscrypto/cam.fw";
 		cas->state = START_LOAD_CAM_FW;
+	} else if (le16_to_cpu(id) == HOST) {
+		/* todo this work in other devices ?? */
+		if (cas->device_running == CAS2_PLUS2_CRYPTO_DEVICE)
+			fw_name = "cas2pluscrypto/cam.fw";
+		cas->state = START_LOAD_HOST_FW;
 	} else if (le16_to_cpu(id) == MM) {
 		if (cas->device_running == CAS2_DEVICE)
 			fw_name = "cas2/mm.fw";
@@ -508,6 +520,8 @@ static int cas_firmware_load(struct usb_cas *cas, int id, int reset_cpu)
 		cas->state = FINISH_LOAD_XCAM_FW;
 	else if (cas->state == START_LOAD_JOKER_FW)
 		cas->state = FINISH_LOAD_JOKER_FW;
+	else if (cas->state == START_LOAD_HOST_FW)
+		cas->state = FINISH_LOAD_HOST_FW;
 
 	return 1;
 out:
@@ -828,6 +842,22 @@ static int cas_set_joker_fw(struct usb_cas *cas)
 	return result;
 }
 
+static int cas_set_host_fw(struct usb_cas *cas)
+{
+	int result;
+
+	if (cas->state != FINISH_LOAD_HOST_FW) {
+		result = cas_firmware_load(cas, HOST, RESET_CPU);
+		wait_for_finish(cas, WAIT_FOR_FW);
+	}
+
+	result = send_host_command(cas);
+	if (result >= 0)
+		dev_info(&cas->uinterface->dev, "%s set to host mode\n", cas->device_name);
+
+	return result;
+}
+
 static ssize_t status_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	struct usb_interface *interface = usb_find_interface(&cas_driver, 0);
@@ -930,6 +960,11 @@ static ssize_t status_store(struct device *dev, struct device_attribute *attr, c
 		if (device_verification(cas, JOKER)) {
 			cas->status = JOKER;
 			cas_set_programmer_fw(cas);
+		}
+	} else if (!strncmp(buf, "host", 4)) {
+		if (device_verification(cas, HOST)) {
+			cas->status = HOST;
+			cas_set_host_fw(cas);
 		}
 	}
 
@@ -1134,6 +1169,16 @@ static long cas_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 					dev_err(&cas->uinterface->dev, "Error executing IOCTL_SET_JOKER ioctrl, result = %d", le32_to_cpu(result));
 				else
 					dev_dbg(&cas->uinterface->dev, "Executed IOCTL_SET_JOKER ioctl, result = %d", le32_to_cpu(result));
+			}
+			break;
+		case IOCTL_SET_HOST:
+			if (device_verification(cas, HOST)) {
+				cas->status = HOST;
+				result = cas_set_host_fw(cas);
+				if (result < 0)
+					dev_err(&cas->uinterface->dev, "Error executing IOCTL_SET_HOST ioctrl, result = %d", le32_to_cpu(result));
+				else
+					dev_dbg(&cas->uinterface->dev, "Executed IOCTL_SET_HOST ioctl, result = %d", le32_to_cpu(result));
 			}
 			break;
 		case IOCTL_RECV_VENDOR_COMMAND:
