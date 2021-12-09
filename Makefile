@@ -1,7 +1,3 @@
-update:
-	@git pull --ff-only || git pull --rebase
-	@git submodule sync && git submodule update --init
-
 all:
 	$(MAKE) -C cas PWD=$(shell pwd)/cas
 	$(MAKE) -C dynamite PWD=$(shell pwd)/dynamite
@@ -9,7 +5,7 @@ all:
 	$(MAKE) -C dynamite_control
 	$(MAKE) -C ihex2fw
 	$(MAKE) -C firmware
-	$(MAKE) -C oscam
+	git submodule sync && git submodule update --init && $(MAKE) -C oscam
 
 clean:
 	$(MAKE) -C cas clean PWD=$(shell pwd)/cas
