@@ -1,0 +1,3 @@
+[submodule "oscam"]
+	path = oscam
+	url = https://github.com/redblue-pkt/oscam
