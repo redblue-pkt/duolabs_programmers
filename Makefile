@@ -5,7 +5,7 @@ all:
 	$(MAKE) -C dynamite_control
 	$(MAKE) -C ihex2fw
 	$(MAKE) -C firmware
-	git submodule sync && git submodule update --init && $(MAKE) -C oscam
+	@git submodule sync && git submodule update --init && $(MAKE) -C oscam
 
 clean:
 	$(MAKE) -C cas clean PWD=$(shell pwd)/cas
@@ -21,4 +21,4 @@ install:
 	$(MAKE) -C ezusb install
 	$(MAKE) -C dynamite_control install
 	$(MAKE) -C firmware install
-	$(foreach file, $(wildcard oscam/Distribution/oscam-1.20_*-*-linux-gnu), cp -rf $(file) /usr/bin/oscam;)
+	@$(foreach file, $(wildcard oscam/Distribution/oscam-1.20_*-*-linux-gnu), cp -rf $(file) /usr/bin/oscam;)
