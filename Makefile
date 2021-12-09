@@ -1,3 +1,7 @@
+update:
+	@git pull --ff-only || git pull --rebase
+	@git submodule sync && git submodule update --init
+
 all:
 	$(MAKE) -C cas PWD=$(shell pwd)/cas
 	$(MAKE) -C dynamite PWD=$(shell pwd)/dynamite
