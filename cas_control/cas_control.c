@@ -43,7 +43,7 @@ tArgs vArgs[] =
 	{ "-j", " --setJtag  ", "Args: No argumens\n\tSet jtag mode" },
 	{ "-p", " --setPhoenix	", "Args: 357, 368, 400, 600\n\tSet phoenix mode" },
 	{ "-s", " --setSmartmouse	", "Args: 357, 368, 400, 600\n\tSet smartmouse mode" },
-	{ "-h", " --setHost       ", "Args: 357, 368, 400, 600\n\tSet host mode" },
+	{ "-h", " --setHost       ", "Args: No argumens\n\tSet host mode" },
 	{ NULL, NULL, NULL }
 };
 
