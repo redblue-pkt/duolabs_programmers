@@ -594,7 +594,6 @@ static ssize_t status_store(struct device *dev, struct device_attribute *attr, c
 	return count;
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,12,0)
 static DEVICE_ATTR_RW(status);
 #else
 static ssize_t show_status(struct device *dev, struct device_attribute *attr, char *buf)
