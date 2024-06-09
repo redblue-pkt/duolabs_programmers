@@ -18,6 +18,7 @@
  */
 
 #include <linux/kernel.h>
+#include <linux/version.h>
 #include <linux/errno.h>
 #include <linux/slab.h>
 #include <linux/module.h>
@@ -547,6 +548,7 @@ static int dynamite_set_cardprogrammer_fw(struct usb_dynamite *dynamite)
         return result;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,12,0)
 static ssize_t status_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	struct usb_interface *interface = usb_find_interface(&dynamite_driver, 0);
@@ -591,7 +593,57 @@ static ssize_t status_store(struct device *dev, struct device_attribute *attr, c
 
 	return count;
 }
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,12,0)
 static DEVICE_ATTR_RW(status);
+#else
+static ssize_t show_status(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct usb_interface *interface = usb_find_interface(&dynamite_driver, 0);
+	struct usb_dynamite *dynamite = usb_get_intfdata(interface);
+
+	return sprintf(buf, "%s", dynamite_device_status[dynamite->status]);
+}
+
+static ssize_t store_status(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct usb_interface *interface = usb_find_interface(&dynamite_driver, 0);
+        struct usb_dynamite *dynamite = usb_get_intfdata(interface);
+
+        if (!strncmp(buf, "phoenix357", 10)) {
+                dynamite->status = PHOENIX_357;
+                dynamite_set_phoenix_357_fw(dynamite);
+        } else if (!strncmp(buf, "phoenix368", 10)) {
+                dynamite->status = PHOENIX_368;
+                dynamite_set_phoenix_368_fw(dynamite);
+        } else if (!strncmp(buf, "phoenix400", 10)) {
+                dynamite->status = PHOENIX_400;
+                dynamite_set_phoenix_400_fw(dynamite);
+        } else if (!strncmp(buf, "phoenix600", 10)) {
+                dynamite->status = PHOENIX_600;
+                dynamite_set_phoenix_600_fw(dynamite);
+        } else if (!strncmp(buf, "smartmouse357", 13)) {
+                dynamite->status = SMARTMOUSE_357;
+                dynamite_set_smartmouse_357_fw(dynamite);
+        } else if (!strncmp(buf, "smartmouse368", 13)) {
+                dynamite->status = SMARTMOUSE_368;
+                dynamite_set_smartmouse_368_fw(dynamite);
+        } else if (!strncmp(buf, "smartmouse400", 13)) {
+                dynamite->status = SMARTMOUSE_400;
+                dynamite_set_smartmouse_400_fw(dynamite);
+        } else if (!strncmp(buf, "smartmouse600", 13)) {
+                dynamite->status = SMARTMOUSE_600;
+                dynamite_set_smartmouse_600_fw(dynamite);
+        } else if (!strncmp(buf, "cardprogrammer", 14)) {
+                dynamite->status = CARDPROGRAMMER;
+                dynamite_set_cardprogrammer_fw(dynamite);
+        }
+
+        return count;
+}
+
+static DEVICE_ATTR(status, S_IWUSR | S_IRUGO, show_status, store_status);
+#endif
 
 static long dynamite_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
