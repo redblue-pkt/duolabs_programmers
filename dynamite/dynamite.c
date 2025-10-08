@@ -165,18 +165,21 @@ static int bulk_command_snd(struct usb_dynamite *dynamite, const char *buf, int 
 	return result;
 }
 
-static int bulk_command_rcv(struct usb_dynamite *dynamite, char *buf, int size, int count)
+static int bulk_command_rcv(struct usb_dynamite *dynamite, char *buf, int size, int *count)
 {
-	int result;
+	int result, actual_len = 0;
 
 	mutex_lock(&dynamite->lock);
 
-	result = usb_bulk_msg(dynamite->udevice, usb_rcvbulkpipe(dynamite->udevice, dynamite->bulk_in_endpointAddr), buf, size, NULL, 1000);
+	result = usb_bulk_msg(dynamite->udevice, usb_rcvbulkpipe(dynamite->udevice, dynamite->bulk_in_endpointAddr), buf, size, &actual_len, 1000);
 
 	if ((debug != DEBUG_NONE && debug != FULL_DEBUG_OUT && debug != SIMPLE_DEBUG_OUT) && buf != NULL)
 		dump_buffer(dynamite, buf, "data_in", MAX_PKT_SIZE);
 
 	mutex_unlock(&dynamite->lock);
+
+	if (count)
+		*count = actual_len;
 
 	return result;
 }
@@ -418,7 +421,7 @@ static int dynamite_set_phoenix_357_fw(struct usb_dynamite *dynamite)
 
 	result = send_phoenix_357_command(dynamite);
 	if (result >= 0)
-		dev_info(&dynamite->uinterface->dev, "%s set to phoenix mode 357 mhz\n", dynamite->device_name);
+		dev_info(&dynamite->uinterface->dev, "%s #%d set to phoenix mode 357 mhz\n", dynamite->device_name, dynamite->uinterface->minor);
 
 	return result;
 }
@@ -434,7 +437,7 @@ static int dynamite_set_phoenix_368_fw(struct usb_dynamite *dynamite)
 
 	result = send_phoenix_368_command(dynamite);
 	if (result >= 0)
-		dev_info(&dynamite->uinterface->dev, "%s set to phoenix mode 368 mhz\n", dynamite->device_name);
+		dev_info(&dynamite->uinterface->dev, "%s #%d set to phoenix mode 368 mhz\n", dynamite->device_name, dynamite->uinterface->minor);
 
 	return result;
 }
@@ -450,7 +453,7 @@ static int dynamite_set_phoenix_400_fw(struct usb_dynamite *dynamite)
 
 	result = send_phoenix_400_command(dynamite);
 	if (result >= 0)
-		dev_info(&dynamite->uinterface->dev, "%s set to phoenix mode 400 mhz\n", dynamite->device_name);
+		dev_info(&dynamite->uinterface->dev, "%s #%d set to phoenix mode 400 mhz\n", dynamite->device_name, dynamite->uinterface->minor);
 
 
 	return result;
@@ -467,7 +470,7 @@ static int dynamite_set_phoenix_600_fw(struct usb_dynamite *dynamite)
 
 	result = send_phoenix_600_command(dynamite);
 	if (result >= 0)
-		dev_info(&dynamite->uinterface->dev, "%s set to phoenix mode 600 mhz\n", dynamite->device_name);
+		dev_info(&dynamite->uinterface->dev, "%s #%d set to phoenix mode 600 mhz\n", dynamite->device_name, dynamite->uinterface->minor);
 
 	return result;
 }
@@ -483,7 +486,7 @@ static int dynamite_set_smartmouse_357_fw(struct usb_dynamite *dynamite)
 
 	result = send_smartmouse_357_command(dynamite);
 	if (result >= 0)
-		dev_info(&dynamite->uinterface->dev, "%s set to smartmouse mode 357 mhz\n", dynamite->device_name);
+		dev_info(&dynamite->uinterface->dev, "%s #%d set to smartmouse mode 357 mhz\n", dynamite->device_name, dynamite->uinterface->minor);
 
 	return result;
 }
@@ -499,7 +502,7 @@ static int dynamite_set_smartmouse_368_fw(struct usb_dynamite *dynamite)
 
 	result = send_smartmouse_368_command(dynamite);
 	if (result >= 0)
-		dev_info(&dynamite->uinterface->dev, "%s set to smartmouse mode 368 mhz\n", dynamite->device_name);
+		dev_info(&dynamite->uinterface->dev, "%s #%d set to smartmouse mode 368 mhz\n", dynamite->device_name, dynamite->uinterface->minor);
 
 	return result;
 }
@@ -515,7 +518,7 @@ static int dynamite_set_smartmouse_400_fw(struct usb_dynamite *dynamite)
 
 	result = send_smartmouse_400_command(dynamite);
 	if (result >= 0)
-		dev_info(&dynamite->uinterface->dev, "%s set to smartmouse mode 400 mhz\n", dynamite->device_name);
+		dev_info(&dynamite->uinterface->dev, "%s #%d set to smartmouse mode 400 mhz\n", dynamite->device_name, dynamite->uinterface->minor);
 
 	return result;
 }
@@ -531,7 +534,7 @@ static int dynamite_set_smartmouse_600_fw(struct usb_dynamite *dynamite)
 
 	result = send_smartmouse_600_command(dynamite);
 	if (result >= 0)
-		dev_info(&dynamite->uinterface->dev, "%s set to smartmouse mode 600 mhz\n", dynamite->device_name);
+		dev_info(&dynamite->uinterface->dev, "%s #%d set to smartmouse mode 600 mhz\n", dynamite->device_name, dynamite->uinterface->minor);
 
 	return result;
 }
@@ -543,7 +546,7 @@ static int dynamite_set_cardprogrammer_fw(struct usb_dynamite *dynamite)
         result = dynamite_firmware_load(dynamite, CARDPROGRAMMER, RESET_CPU);
 	wait_for_finish(dynamite, WAIT_FOR_FW);
 	if (result >= 0)
-		dev_info(&dynamite->uinterface->dev, "%s set to card programmer mode\n", dynamite->device_name);
+		dev_info(&dynamite->uinterface->dev, "%s #%d set to card programmer mode\n", dynamite->device_name, dynamite->uinterface->minor);
 
         return result;
 }
@@ -551,7 +554,8 @@ static int dynamite_set_cardprogrammer_fw(struct usb_dynamite *dynamite)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,12,0)
 static ssize_t status_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
-	struct usb_interface *interface = usb_find_interface(&dynamite_driver, 0);
+	//struct usb_interface *interface = usb_find_interface(&dynamite_driver, 0);
+	struct usb_interface *interface = to_usb_interface(dev);
 	struct usb_dynamite *dynamite = usb_get_intfdata(interface);
 
 	return sprintf(buf, "%s", dynamite_device_status[dynamite->status]);
@@ -559,7 +563,8 @@ static ssize_t status_show(struct device *dev, struct device_attribute *attr, ch
 
 static ssize_t status_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
 {
-	struct usb_interface *interface = usb_find_interface(&dynamite_driver, 0);
+	//struct usb_interface *interface = usb_find_interface(&dynamite_driver, 0);
+	struct usb_interface *interface = to_usb_interface(dev);
 	struct usb_dynamite *dynamite = usb_get_intfdata(interface);
 
 	if (!strncmp(buf, "phoenix357", 10)) {
@@ -598,7 +603,8 @@ static DEVICE_ATTR_RW(status);
 #else
 static ssize_t show_status(struct device *dev, struct device_attribute *attr, char *buf)
 {
-	struct usb_interface *interface = usb_find_interface(&dynamite_driver, 0);
+	//struct usb_interface *interface = usb_find_interface(&dynamite_driver, 0);
+	struct usb_interface *interface = to_usb_interface(dev);
 	struct usb_dynamite *dynamite = usb_get_intfdata(interface);
 
 	return sprintf(buf, "%s", dynamite_device_status[dynamite->status]);
@@ -606,7 +612,8 @@ static ssize_t show_status(struct device *dev, struct device_attribute *attr, ch
 
 static ssize_t store_status(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
 {
-	struct usb_interface *interface = usb_find_interface(&dynamite_driver, 0);
+	//struct usb_interface *interface = usb_find_interface(&dynamite_driver, 0);
+	struct usb_interface *interface = to_usb_interface(dev);
         struct usb_dynamite *dynamite = usb_get_intfdata(interface);
 
         if (!strncmp(buf, "phoenix357", 10)) {
@@ -649,7 +656,7 @@ static long dynamite_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 	int result;
 
 	struct usb_dynamite *dynamite = (struct usb_dynamite *)file->private_data;
-	struct usb_interface *interface = usb_find_interface(&dynamite_driver, 0);
+	//struct usb_interface *interface = usb_find_interface(&dynamite_driver, 0);
 
 	struct dynamite_bulk_command dynamite_bulk_cmd;
 	struct dynamite_vendor_command dynamite_vendor_cmd;
@@ -882,13 +889,40 @@ err_out:
 	return result;
 }
 
+#if 1
+static ssize_t dynamite_read(struct file *file, char __user *ubuf, size_t count, loff_t *ppos)
+{
+    struct usb_dynamite *d = file->private_data;
+    int ret, actual = 0;
+    size_t to_read;
+
+    if (!d || !d->udevice)
+        return -ENODEV;
+
+    to_read = min_t(size_t, d->bulk_in_size, count);
+
+    ret = bulk_command_rcv(d, d->bulk_in_buffer, (int)to_read, &actual);
+    if (ret < 0)
+        return ret;
+
+    if (actual <= 0)
+        return 0; // timeout/EOF
+
+    if (copy_to_user(ubuf, d->bulk_in_buffer, actual))
+        return -EFAULT;
+
+    return actual;
+}
+#else
 static ssize_t dynamite_read(struct file *file, char __user *buffer, size_t count, loff_t *ppos)
 {
 	int result;
 	struct usb_dynamite *dynamite = (struct usb_dynamite *)file->private_data;
-	struct usb_interface *interface = usb_find_interface(&dynamite_driver, 0);
+	//struct usb_interface *interface = usb_find_interface(&dynamite_driver, 0);
+	    struct inode *inode = file_inode(file);
+	struct usb_interface *interface = usb_find_interface(&dynamite_driver, iminor(inode));
 
-	result = bulk_command_rcv(dynamite, dynamite->bulk_in_buffer, min(dynamite->bulk_in_size, count), count);
+	result = bulk_command_rcv(dynamite, dynamite->bulk_in_buffer, min(dynamite->bulk_in_size, count), &count);
 
 	if (!result) {
 		if (copy_to_user(buffer, dynamite->bulk_in_buffer, count))
@@ -899,6 +933,7 @@ static ssize_t dynamite_read(struct file *file, char __user *buffer, size_t coun
 
 	return result;
 }
+#endif
 
 static void dynamite_write_bulk_callback(struct urb *urb)
 {
@@ -974,7 +1009,8 @@ error:
 static int dynamite_open(struct inode *inode, struct file *file)
 {
 	int result;
-	struct usb_interface *interface = usb_find_interface(&dynamite_driver, 0);
+	//struct usb_interface *interface = usb_find_interface(&dynamite_driver, 0);
+	struct usb_interface *interface = usb_find_interface(&dynamite_driver, iminor(inode));
 	struct usb_dynamite *dynamite = usb_get_intfdata(interface);
 
 	kref_get(&dynamite->kref);
@@ -1032,6 +1068,7 @@ static struct usb_driver dynamite_driver = {
 };
 
 static const struct file_operations dynamite_fops = {
+	.owner = THIS_MODULE,
 	.unlocked_ioctl	= dynamite_ioctl,
 	.read		= dynamite_read,
 	.write		= dynamite_write,
@@ -1039,9 +1076,12 @@ static const struct file_operations dynamite_fops = {
 	.release	= dynamite_release,
 };
 
+#define DYNAMITE_MINOR_BASE 180
+
 static struct usb_class_driver dynamite_class = {
-	.name =		"dynamite_programmer",
+	.name =		"dynamite%d",
 	.fops =		&dynamite_fops,
+	.minor_base = DYNAMITE_MINOR_BASE,
 };
 
 static int dynamite_probe(struct usb_interface *interface, const struct usb_device_id *id)
@@ -1140,7 +1180,7 @@ static int dynamite_probe(struct usb_interface *interface, const struct usb_devi
 		//read_eeprom(dynamite, buf, 64, 0);
 	}
 
-	dev_info(&interface->dev, "%s Reader/Programmer now attached\n", dynamite->device_name);
+	dev_info(&interface->dev, "%s Reader/Programmer now attached as /dev/dynamite%d\n", dynamite->device_name, interface->minor);
 
 	return 0;
 error:
@@ -1161,7 +1201,8 @@ static void dynamite_disconnect(struct usb_interface *interface)
 	struct usb_dynamite *dynamite;
 	dynamite = usb_get_intfdata(interface);
 
-	usb_deregister_dev(interface, &dynamite->uclass);
+	//usb_deregister_dev(interface, &dynamite->uclass);
+	usb_deregister_dev(interface, &dynamite_class); 
 	device_remove_file(&interface->dev, &dev_attr_status);
 
 	/* first remove the files, then NULL the pointer */
