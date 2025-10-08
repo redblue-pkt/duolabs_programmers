@@ -32,6 +32,8 @@ char* unconstchar(const char* s) {
     return res;
 }
 
+char *dynamite_device = NULL;
+
 #define DYNAMITE_DEVICE "/dev/dynamite_programmer"
 
 #endif
