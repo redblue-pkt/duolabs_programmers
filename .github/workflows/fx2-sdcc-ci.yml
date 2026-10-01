@@ -1,0 +1,63 @@
+name: fx2-sdcc-ci
+on:
+  push:
+    branches:
+      - ci/fx2-sdcc-20261001
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install SDCC
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y sdcc
+          sdcc --version
+      - name: Reconstruct source
+        run: |
+          set -eux
+          wc -c ci-fx2/src.part*
+          cat ci-fx2/src.part* > /tmp/fx2.b64
+          wc -c /tmp/fx2.b64
+          base64 -d /tmp/fx2.b64 > /tmp/fx2.tar.gz
+          echo 'eebd5a0515849e42ee8e1ccbcc4f103778e14ba2bf4ce5cbe4ccca736a32a165  /tmp/fx2.tar.gz' | sha256sum -c -
+          mkdir -p /tmp/fx2
+          tar -xzf /tmp/fx2.tar.gz -C /tmp/fx2
+          cp -a /tmp/fx2/lib /tmp/fx2/start-fx2-serial-from-zero-v1/lib
+          cp -a /tmp/fx2/lib /tmp/fx2/phoenix-fx2-serial-from-zero-v1/lib
+      - name: Build Start
+        run: |
+          set -euxo pipefail
+          make -C /tmp/fx2/start-fx2-serial-from-zero-v1 clean all 2>&1 | tee /tmp/start-build.log
+      - name: Build Phoenix
+        run: |
+          set -euxo pipefail
+          make -C /tmp/fx2/phoenix-fx2-serial-from-zero-v1 clean all 2>&1 | tee /tmp/phoenix-build.log
+      - name: Verify firmware set
+        run: |
+          set -eux
+          test -s /tmp/fx2/start-fx2-serial-from-zero-v1/start.fw
+          test -s /tmp/fx2/start-fx2-serial-from-zero-v1/start-pl2303.fw
+          test -s /tmp/fx2/start-fx2-serial-from-zero-v1/start-cp210x.fw
+          test -s /tmp/fx2/start-fx2-serial-from-zero-v1/start-ftdi.fw
+          test -s /tmp/fx2/phoenix-fx2-serial-from-zero-v1/phoenix.fw
+          test -s /tmp/fx2/phoenix-fx2-serial-from-zero-v1/phoenix-pl2303.fw
+          test -s /tmp/fx2/phoenix-fx2-serial-from-zero-v1/phoenix-cp210x.fw
+          test -s /tmp/fx2/phoenix-fx2-serial-from-zero-v1/phoenix-ftdi.fw
+          ls -lh /tmp/fx2/start-fx2-serial-from-zero-v1/*.fw /tmp/fx2/phoenix-fx2-serial-from-zero-v1/*.fw
+      - name: Collect output
+        if: always()
+        run: |
+          mkdir -p ci-out
+          cp /tmp/start-build.log ci-out/ 2>/dev/null || true
+          cp /tmp/phoenix-build.log ci-out/ 2>/dev/null || true
+          cp /tmp/fx2/start-fx2-serial-from-zero-v1/*.fw ci-out/ 2>/dev/null || true
+          cp /tmp/fx2/phoenix-fx2-serial-from-zero-v1/*.fw ci-out/ 2>/dev/null || true
+          sdcc --version > ci-out/sdcc-version.txt 2>&1 || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fx2-sdcc-build
+          path: ci-out
