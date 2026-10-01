@@ -20,16 +20,12 @@ jobs:
         run: |
           set -eux
           mkdir -p sdcc-root/usr/bin sdcc-root/usr/share
-          for x in sdcc sdas8051 sdar sdld s51; do
-            p="$(command -v "$x" || true)"
-            if [ -n "$p" ]; then
-              cp -a "$p" sdcc-root/usr/bin/
-            fi
-          done
+          cp -a /usr/bin/sd* sdcc-root/usr/bin/
           cp -a /usr/share/sdcc sdcc-root/usr/share/
           tar -C sdcc-root -czf sdcc-linux-x64.tar.gz usr
           sha256sum sdcc-linux-x64.tar.gz > sdcc-linux-x64.tar.gz.sha256
           ls -lh sdcc-linux-x64.tar.gz
+          ls -l sdcc-root/usr/bin
       - uses: actions/upload-artifact@v4
         with:
           name: sdcc-linux-x64
