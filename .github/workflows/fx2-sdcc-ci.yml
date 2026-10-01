@@ -7,75 +7,32 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-
       - name: Install SDCC
         run: |
           set -eux
           sudo apt-get update
           sudo apt-get install -y sdcc
           sdcc --version
-
-      - name: Reconstruct source
+      - name: Pack SDCC toolchain
         run: |
           set -eux
-          wc -c ci-fx2/small.*
-          cat ci-fx2/small.* > /tmp/fx2.b64
-          test "$(wc -c < /tmp/fx2.b64)" = 32688
-          base64 -d /tmp/fx2.b64 > /tmp/fx2.tar.xz
-          echo '300ec8ecbcc158645306fd47182cb16c6ab0351c80449ddd17eef7cda951fa5c  /tmp/fx2.tar.xz' | sha256sum -c -
-          mkdir -p /tmp/fx2
-          tar -xJf /tmp/fx2.tar.xz -C /tmp/fx2
-
-      - name: Fetch exact fx2lib
-        run: |
-          set -eux
-          git clone https://github.com/djmuhlestein/fx2lib.git /tmp/fx2lib
-          git -C /tmp/fx2lib checkout 3f9434a90c04ae3f7294f62038621ef885bcd8d0
-          test "$(git -C /tmp/fx2lib rev-parse HEAD)" = 3f9434a90c04ae3f7294f62038621ef885bcd8d0
-          cp -a /tmp/fx2lib /tmp/fx2/start-fx2-serial-from-zero-v1/lib
-          cp -a /tmp/fx2lib /tmp/fx2/phoenix-fx2-serial-from-zero-v1/lib
-
-      - name: Build Start
-        run: |
-          set -euxo pipefail
-          make -C /tmp/fx2/start-fx2-serial-from-zero-v1 clean all 2>&1 | tee /tmp/start-build.log
-
-      - name: Build Phoenix
-        run: |
-          set -euxo pipefail
-          make -C /tmp/fx2/phoenix-fx2-serial-from-zero-v1 clean all 2>&1 | tee /tmp/phoenix-build.log
-
-      - name: Verify firmware set
-        run: |
-          set -eux
-          for f in \
-            /tmp/fx2/start-fx2-serial-from-zero-v1/start.fw \
-            /tmp/fx2/start-fx2-serial-from-zero-v1/start-pl2303.fw \
-            /tmp/fx2/start-fx2-serial-from-zero-v1/start-cp210x.fw \
-            /tmp/fx2/start-fx2-serial-from-zero-v1/start-ftdi.fw \
-            /tmp/fx2/phoenix-fx2-serial-from-zero-v1/phoenix.fw \
-            /tmp/fx2/phoenix-fx2-serial-from-zero-v1/phoenix-pl2303.fw \
-            /tmp/fx2/phoenix-fx2-serial-from-zero-v1/phoenix-cp210x.fw \
-            /tmp/fx2/phoenix-fx2-serial-from-zero-v1/phoenix-ftdi.fw; do
-            test -s "$f"
+          mkdir -p sdcc-root/usr/bin sdcc-root/usr/share
+          for x in sdcc sdas8051 sdar sdld s51; do
+            p="$(command -v "$x" || true)"
+            if [ -n "$p" ]; then
+              cp -a "$p" sdcc-root/usr/bin/
+            fi
           done
-          ls -lh /tmp/fx2/start-fx2-serial-from-zero-v1/*.fw /tmp/fx2/phoenix-fx2-serial-from-zero-v1/*.fw
-
-      - name: Collect output
-        if: always()
-        run: |
-          mkdir -p ci-out
-          cp /tmp/start-build.log ci-out/ 2>/dev/null || true
-          cp /tmp/phoenix-build.log ci-out/ 2>/dev/null || true
-          cp /tmp/fx2/start-fx2-serial-from-zero-v1/*.fw ci-out/ 2>/dev/null || true
-          cp /tmp/fx2/phoenix-fx2-serial-from-zero-v1/*.fw ci-out/ 2>/dev/null || true
-          sdcc --version > ci-out/sdcc-version.txt 2>&1 || true
-
+          cp -a /usr/share/sdcc sdcc-root/usr/share/
+          tar -C sdcc-root -czf sdcc-linux-x64.tar.gz usr
+          sha256sum sdcc-linux-x64.tar.gz > sdcc-linux-x64.tar.gz.sha256
+          ls -lh sdcc-linux-x64.tar.gz
       - uses: actions/upload-artifact@v4
-        if: always()
         with:
-          name: fx2-sdcc-build
-          path: ci-out
+          name: sdcc-linux-x64
+          path: |
+            sdcc-linux-x64.tar.gz
+            sdcc-linux-x64.tar.gz.sha256
